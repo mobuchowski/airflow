@@ -126,6 +126,9 @@ class DbApiHook(BaseHook):
             raise Exception("pandas library not installed, run: pip install 'apache-airflow[pandas]'.")
 
         with closing(self.get_conn()) as conn:
+            self.report_execution(
+                method="get_pandas_df", kwargs={"sql": sql, "parameters": parameters, **kwargs}
+            )
             return psql.read_sql(sql, con=conn, params=parameters, **kwargs)
 
     def get_records(self, sql, parameters=None):
@@ -142,6 +145,7 @@ class DbApiHook(BaseHook):
                     cur.execute(sql, parameters)
                 else:
                     cur.execute(sql)
+                self.report_execution(method="get_records", kwargs={"sql": sql, "parameters": parameters})
                 return cur.fetchall()
 
     def get_first(self, sql, parameters=None):
@@ -195,6 +199,10 @@ class DbApiHook(BaseHook):
             if not self.get_autocommit(conn):
                 conn.commit()
 
+        self.report_execution(
+            method="run",
+            kwargs={"sql": sql, "autocommit": autocommit, "parameters": parameters, "handler": handler},
+        )
         if handler is None:
             return None
 
@@ -299,6 +307,17 @@ class DbApiHook(BaseHook):
                     sql = self._generate_insert_sql(table, values, target_fields, replace, **kwargs)
                     self.log.debug("Generated sql: %s", sql)
                     cur.execute(sql, values)
+                    self.report_execution(
+                        method="insert_rows",
+                        kwargs={
+                            "table": table,
+                            "rows": rows,
+                            "target_fields": target_fields,
+                            "commit_every": commit_every,
+                            "replace": replace,
+                            **kwargs,
+                        },
+                    )
                     if commit_every and i % commit_every == 0:
                         conn.commit()
                         self.log.info("Loaded %s rows into %s so far", i, table)

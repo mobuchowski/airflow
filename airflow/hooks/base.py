@@ -18,8 +18,9 @@
 """Base class for all hooks"""
 import logging
 import warnings
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from airflow.listeners.listener import get_listener_manager
 from airflow.typing_compat import Protocol
 from airflow.utils.log.logging_mixin import LoggingMixin
 
@@ -92,6 +93,9 @@ class BaseHook(LoggingMixin):
     @classmethod
     def get_ui_field_behaviour(cls) -> Dict[str, Any]:
         ...
+
+    def report_execution(self, method: str, kwargs: Optional[Dict] = None):
+        get_listener_manager().hook.on_execution(hook=self, method=method, kwargs=kwargs)
 
 
 class DiscoverableHook(Protocol):

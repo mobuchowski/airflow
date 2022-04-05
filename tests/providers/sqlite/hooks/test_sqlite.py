@@ -21,8 +21,19 @@ import unittest
 from unittest import mock
 from unittest.mock import patch
 
+import pytest
+
+from airflow.listeners import events
+from airflow.listeners.listener import get_listener_manager
 from airflow.models import Connection
 from airflow.providers.sqlite.hooks.sqlite import SqliteHook
+
+
+@pytest.fixture(scope="module", autouse=True)
+def register_events():
+    events.register_task_instance_state_events()
+    yield
+    events.unregister_task_instance_state_events()
 
 
 class TestSqliteHookConn(unittest.TestCase):
@@ -126,3 +137,13 @@ class TestSqliteHook(unittest.TestCase):
         )
 
         assert sql == expected_sql
+
+    def test_reports_sql(self):
+        from tests.listeners import sql_listener
+
+        lm = get_listener_manager()
+        lm.add_listener(sql_listener)
+
+        sql = "SELECT * FROM test_table"
+        self.db_hook.run(sql)
+        assert [sql] in sql_listener.sqls

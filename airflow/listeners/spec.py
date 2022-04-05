@@ -15,15 +15,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Dict, Optional
 
 from pluggy import HookspecMarker
 
 if TYPE_CHECKING:
     from sqlalchemy.orm.session import Session
 
+    from airflow.hooks.base import BaseHook
     from airflow.models.taskinstance import TaskInstance
     from airflow.utils.state import TaskInstanceState
+
 
 hookspec = HookspecMarker("airflow")
 
@@ -47,3 +49,8 @@ def on_task_instance_failed(
     previous_state: "TaskInstanceState", task_instance: "TaskInstance", session: Optional["Session"]
 ):
     """Called when task state changes to FAIL. Previous_state can be State.NONE."""
+
+
+@hookspec
+def on_execution(hook: "BaseHook", method: str, kwargs: Optional[Dict]):
+    """Called when hook executes"""

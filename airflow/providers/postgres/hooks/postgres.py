@@ -132,6 +132,7 @@ class PostgresHook(DbApiHook):
         with open(filename, 'r+') as file:
             with closing(self.get_conn()) as conn:
                 with closing(conn.cursor()) as cur:
+                    self.report_execution(method="copy_expert", kwargs={"sql": sql, "filename": filename})
                     cur.copy_expert(sql, file)
                     file.truncate(file.tell())
                     conn.commit()
