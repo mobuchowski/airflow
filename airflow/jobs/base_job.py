@@ -28,6 +28,7 @@ from airflow.compat.functools import cached_property
 from airflow.configuration import conf
 from airflow.exceptions import AirflowException
 from airflow.executors.executor_loader import ExecutorLoader
+from airflow.listeners.listener import get_listener_manager
 from airflow.models.base import ID_LEN, Base
 from airflow.stats import Stats
 from airflow.utils import timezone
@@ -110,6 +111,7 @@ class BaseJob(Base, LoggingMixin):
             self.heartrate = heartrate
         self.unixname = getuser()
         self.max_tis_per_query: int = conf.getint("scheduler", "max_tis_per_query")
+        get_listener_manager().hook.on_starting()
         super().__init__(*args, **kwargs)
 
     @cached_property
@@ -149,6 +151,7 @@ class BaseJob(Base, LoggingMixin):
     @provide_session
     def kill(self, session=None):
         """Handles on_kill callback and updates state in database."""
+        get_listener_manager().hook.before_stopping()
         job = session.query(BaseJob).filter(BaseJob.id == self.id).first()
         job.end_date = timezone.utcnow()
         try:
@@ -252,6 +255,7 @@ class BaseJob(Base, LoggingMixin):
                 self.state = State.FAILED
                 raise
             finally:
+                get_listener_manager().hook.before_stopping()
                 self.end_date = timezone.utcnow()
                 session.merge(self)
                 session.commit()

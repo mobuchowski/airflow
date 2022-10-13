@@ -17,35 +17,22 @@
 # under the License.
 from __future__ import annotations
 
+import typing
+
 from airflow.listeners import hookimpl
-from airflow.utils.state import State
 
-has_started = False
-state = []
+if typing.TYPE_CHECKING:
+    from airflow.models.dagrun import DagRun
 
 
-@hookimpl
-def on_starting():
-    global has_started
-    has_started = True
+success, failure = [], []
 
 
 @hookimpl
-def on_task_instance_running(previous_state, task_instance, session):
-    state.append(State.RUNNING)
+def on_dag_run_success(dag_run: DagRun, msg: str):
+    success.append(dag_run.run_id)
 
 
 @hookimpl
-def on_task_instance_success(previous_state, task_instance, session):
-    state.append(State.SUCCESS)
-
-
-@hookimpl
-def on_task_instance_failed(previous_state, task_instance, session):
-    state.append(State.FAILED)
-
-
-def clear():
-    global has_started, state
-    has_started = False
-    state = []
+def on_dag_run_failed(dag_run: DagRun, msg: str):
+    failure.append(dag_run.run_id)

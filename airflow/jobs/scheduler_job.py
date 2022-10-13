@@ -42,6 +42,7 @@ from airflow.configuration import conf
 from airflow.exceptions import RemovedInAirflow3Warning
 from airflow.executors.executor_loader import UNPICKLEABLE_EXECUTORS
 from airflow.jobs.base_job import BaseJob
+from airflow.listeners.listener import get_listener_manager
 from airflow.models.dag import DAG, DagModel
 from airflow.models.dagbag import DagBag
 from airflow.models.dagrun import DagRun
@@ -798,7 +799,9 @@ class SchedulerJob(BaseJob):
                 )
                 for dag_run in dag_runs:
                     dag_run.dag = dag
-                    _, callback_to_run = dag_run.update_state(execute_callbacks=False)
+                    dag_run, callback_to_run = dag_run.update_state(
+                        execute_callbacks=False, notification=self.notify_dagrun_state_changed
+                    )
                     if callback_to_run:
                         self._send_dag_callbacks_to_processor(dag, callback_to_run)
                 self._paused_dag_without_running_dagruns.add(dag_id)
@@ -1213,7 +1216,6 @@ class SchedulerJob(BaseJob):
                 Stats.timing(f"dagrun.schedule_delay.{dag.dag_id}", schedule_delay)
 
         for dag_run in dag_runs:
-
             dag = dag_run.dag = self.dagbag.get_dag(dag_run.dag_id, session=session)
             if not dag:
                 self.log.error("DAG '%s' not found in serialized_dag table", dag_run.dag_id)
@@ -1230,6 +1232,7 @@ class SchedulerJob(BaseJob):
             else:
                 active_runs_of_dags[dag_run.dag_id] += 1
                 _update_state(dag, dag_run)
+                self.notify_dagrun_state_changed(dag_run)
 
     @retry_db_transaction
     def _schedule_all_dag_runs(self, guard, dag_runs, session):
@@ -1294,6 +1297,7 @@ class SchedulerJob(BaseJob):
                 msg="timed_out",
             )
 
+            self.notify_dagrun_state_changed(dag_run)
             return callback_to_execute
 
         if dag_run.execution_date > timezone.utcnow() and not dag.allow_future_exec_dates:
@@ -1302,7 +1306,11 @@ class SchedulerJob(BaseJob):
 
         self._verify_integrity_if_dag_changed(dag_run=dag_run, session=session)
         # TODO[HA]: Rename update_state -> schedule_dag_run, ?? something else?
-        schedulable_tis, callback_to_run = dag_run.update_state(session=session, execute_callbacks=False)
+        schedulable_tis, callback_to_run = dag_run.update_state(
+            session=session,
+            execute_callbacks=False,
+            notification=self.notify_dagrun_state_changed,
+        )
         if dag_run.state in State.finished:
             active_runs = dag.get_num_active_runs(only_running=False, session=session)
             # Work out if we should allow creating a new DagRun now?
@@ -1518,7 +1526,6 @@ class SchedulerJob(BaseJob):
             self.log.warning("Failing (%s) jobs without heartbeat after %s", len(zombies), limit_dttm)
 
         for ti, file_loc in zombies:
-
             zombie_message_details = self._generate_zombie_message_details(ti)
             request = TaskCallbackRequest(
                 full_filepath=file_loc,
@@ -1571,3 +1578,12 @@ class SchedulerJob(BaseJob):
             dag.is_active = False
             SerializedDagModel.remove_dag(dag_id=dag.dag_id, session=session)
         session.flush()
+
+    def notify_dagrun_state_changed(self, dag_run: DagRun, msg: str = ""):
+        if dag_run.state == DagRunState.RUNNING:
+            get_listener_manager().hook.on_dag_run_running(dag_run=dag_run, msg=msg)
+        elif dag_run.state == DagRunState.SUCCESS:
+            get_listener_manager().hook.on_dag_run_success(dag_run=dag_run, msg=msg)
+        elif dag_run.state == DagRunState.FAILED:
+            get_listener_manager().hook.on_dag_run_failed(dag_run=dag_run, msg=msg)
+        # deliberately not notifying on QUEUED

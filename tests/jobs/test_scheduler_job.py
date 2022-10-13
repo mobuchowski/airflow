@@ -59,6 +59,8 @@ from airflow.utils.file import list_py_file_paths
 from airflow.utils.session import create_session, provide_session
 from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.types import DagRunType
+from tests.listeners import dag_listener
+from tests.listeners.test_listeners import get_listener_manager
 from tests.models import TEST_DAGS_FOLDER
 from tests.test_utils.asserts import assert_queries_count
 from tests.test_utils.config import conf_vars, env_vars
@@ -1793,6 +1795,79 @@ class TestSchedulerJob:
         session.rollback()
         session.close()
 
+    @pytest.mark.parametrize(
+        "state, expected_callback_msg", [(State.SUCCESS, "success"), (State.FAILED, "task_failure")]
+    )
+    def test_dagrun_plugins_are_notified(self, state, expected_callback_msg, dag_maker):
+        """
+        Test if DagRun is successful, and if Success callbacks is defined, it is sent to DagFileProcessor.
+        """
+        with dag_maker(
+            dag_id="test_dagrun_callbacks_are_called",
+            on_success_callback=lambda x: print("success"),
+            on_failure_callback=lambda x: print("failed"),
+            processor_subdir=TEST_DAG_FOLDER,
+        ):
+            EmptyOperator(task_id="dummy")
+
+        get_listener_manager().add_listener(dag_listener)
+
+        self.scheduler_job = SchedulerJob(subdir=os.devnull)
+        self.scheduler_job.executor = MockExecutor()
+        self.scheduler_job.dagbag = dag_maker.dagbag
+        self.scheduler_job.processor_agent = mock.Mock()
+
+        session = settings.Session()
+        dr = dag_maker.create_dagrun()
+
+        ti = dr.get_task_instance("dummy")
+        ti.set_state(state, session)
+
+        with mock.patch.object(settings, "USE_JOB_SCHEDULE", False):
+            self.scheduler_job._do_scheduling(session)
+
+        assert len(dag_listener.success) or len(dag_listener.failure)
+
+        dag_listener.success = []
+        dag_listener.failure = []
+        session.rollback()
+        session.close()
+
+    @pytest.mark.parametrize(
+        "state, expected_callback_msg", [(State.SUCCESS, "success"), (State.FAILED, "task_failure")]
+    )
+    def test_dagrun_finished_notifies_without_defined_callback(self, state, expected_callback_msg, dag_maker):
+        """
+        Test whether notify_dagrun_state_changed receives proper call
+        from scheduler whether dag succeeds or fails.
+        """
+        with dag_maker(
+            dag_id=f"test_dagrun_notifies_without_defined_callback_{state}",
+            on_success_callback=None,
+            on_failure_callback=None,
+            processor_subdir=TEST_DAG_FOLDER,
+        ):
+            EmptyOperator(task_id="dummy")
+
+        notify_callback = mock.MagicMock()
+
+        self.scheduler_job = SchedulerJob(subdir=os.devnull)
+        self.scheduler_job.notify_dagrun_state_changed = notify_callback
+        self.scheduler_job.executor = MockExecutor()
+
+        session = settings.Session()
+        dr = dag_maker.create_dagrun()
+
+        ti = dr.get_task_instance("dummy")
+        ti.set_state(state, session)
+
+        with mock.patch.object(settings, "USE_JOB_SCHEDULE", False):
+            self.scheduler_job._do_scheduling(session)
+
+        notify_callback.assert_called_once_with(dag_run=mock.ANY, msg=expected_callback_msg)
+        session.rollback()
+        session.close()
+
     def test_dagrun_timeout_callbacks_are_stored_in_database(self, dag_maker, session):
         with dag_maker(
             dag_id="test_dagrun_timeout_callbacks_are_stored_in_database",
@@ -1939,6 +2014,36 @@ class TestSchedulerJob:
         assert call_args[1].msg == msg
         session.rollback()
         session.close()
+
+    def test_dagrun_notify_called_success(self, dag_maker):
+        with dag_maker(
+            dag_id="test_dagrun_notify_called",
+            on_success_callback=lambda x: print("success"),
+            on_failure_callback=lambda x: print("failed"),
+            processor_subdir=TEST_DAG_FOLDER,
+        ):
+            EmptyOperator(task_id="dummy")
+
+        listener_callable = mock.MagicMock()
+
+        executor = MockExecutor(do_update=False)
+
+        self.scheduler_job = SchedulerJob(executor=executor)
+        self.scheduler_job.dagbag = dag_maker.dagbag
+        self.scheduler_job.processor_agent = mock.MagicMock()
+        self.scheduler_job.notify_dagrun_state_changed = listener_callable
+
+        session = settings.Session()
+        dr = dag_maker.create_dagrun()
+
+        ti = dr.get_task_instance("dummy")
+        ti.set_state(State.SUCCESS, session)
+
+        with mock.patch.object(settings, "USE_JOB_SCHEDULE", False):
+            with mock.patch.object(self.scheduler_job, "notify_dagrun_state_changed", listener_callable):
+                self.scheduler_job._do_scheduling(session)
+
+        listener_callable.assert_called_once_with(dag_run=mock.ANY, msg="success")
 
     def test_do_not_schedule_removed_task(self, dag_maker):
         schedule_interval = datetime.timedelta(days=1)

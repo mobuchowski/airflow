@@ -20,13 +20,14 @@ from __future__ import annotations
 import pytest as pytest
 
 from airflow import AirflowException
+from airflow.jobs.base_job import BaseJob
 from airflow.listeners import events, hookimpl
 from airflow.listeners.listener import get_listener_manager
 from airflow.operators.bash import BashOperator
 from airflow.utils import timezone
 from airflow.utils.session import provide_session
 from airflow.utils.state import State
-from tests.listeners import full_listener, partial_listener, throwing_listener
+from tests.listeners import full_listener, lifecycle_listener, partial_listener, throwing_listener
 
 DAG_ID = "test_listener_dag"
 TASK_ID = "test_listener_task"
@@ -47,7 +48,8 @@ def clean_listener_manager():
     yield
     lm = get_listener_manager()
     lm.clear()
-    full_listener.state = []
+    full_listener.clear()
+    lifecycle_listener.clear()
 
 
 @provide_session
@@ -63,6 +65,21 @@ def test_listener_gets_calls(create_task_instance, session=None):
 
     assert len(full_listener.state) == 2
     assert full_listener.state == [State.RUNNING, State.SUCCESS]
+
+
+@provide_session
+def test_multiple_listeners(create_task_instance, session=None):
+    lm = get_listener_manager()
+    lm.add_listener(full_listener)
+    lm.add_listener(lifecycle_listener)
+
+    try:
+        BaseJob().run()
+    except NotImplementedError:
+        pass  # just for lifecycle
+
+    assert full_listener.has_started is True
+    assert lifecycle_listener.has_started is True
 
 
 @provide_session

@@ -57,7 +57,7 @@ from airflow.models.tasklog import LogTemplate
 from airflow.stats import Stats
 from airflow.ti_deps.dep_context import DepContext
 from airflow.ti_deps.dependencies_states import SCHEDULEABLE_STATES
-from airflow.typing_compat import Literal
+from airflow.typing_compat import Literal, Protocol
 from airflow.utils import timezone
 from airflow.utils.helpers import is_container
 from airflow.utils.log.logging_mixin import LoggingMixin
@@ -72,6 +72,13 @@ if TYPE_CHECKING:
 
     CreatedTasks = TypeVar("CreatedTasks", Iterator["dict[str, Any]"], Iterator[TI])
     TaskCreator = Callable[[Operator, Iterable[int]], CreatedTasks]
+
+
+class DagNotificationProtocol(Protocol):
+    """Protocol denoting contract of DagRun Listeners"""
+
+    def __call__(self, dag_run: DagRun, msg: str):
+        ...
 
 
 class TISchedulingDecision(NamedTuple):
@@ -508,7 +515,10 @@ class DagRun(Base, LoggingMixin):
 
     @provide_session
     def update_state(
-        self, session: Session = NEW_SESSION, execute_callbacks: bool = True
+        self,
+        session: Session = NEW_SESSION,
+        execute_callbacks: bool = True,
+        notification: DagNotificationProtocol | None = None,
     ) -> tuple[list[TI], DagCallbackRequest | None]:
         """
         Determines the overall state of the DagRun based on the state
@@ -516,8 +526,9 @@ class DagRun(Base, LoggingMixin):
 
         :param session: Sqlalchemy ORM Session
         :param execute_callbacks: Should dag callbacks (success/failure, SLA etc) be invoked
-            directly (default: true) or recorded as a pending request in the ``callback`` property
-        :return: Tuple containing tis that can be scheduled in the current loop & `callback` that
+            directly (default: true) or recorded as a pending request in the ``returned_callback`` property
+        :param notification: Callable satisfying DagNotificationProtocol to notify about dag run state.
+        :return: Tuple containing tis that can be scheduled in the current loop & `returned_callback` that
             needs to be executed
         """
         # Callback to execute in case of Task Failures
@@ -571,6 +582,9 @@ class DagRun(Base, LoggingMixin):
         if not unfinished.tis and any(leaf_ti.state in State.failed_states for leaf_ti in leaf_tis):
             self.log.error("Marking run %s failed", self)
             self.set_state(DagRunState.FAILED)
+            if notification:
+                notification(dag_run=self, msg="task_failure")
+
             if execute_callbacks:
                 dag.handle_callback(self, success=False, reason="task_failure", session=session)
             elif dag.has_on_failure_callback:
@@ -590,6 +604,9 @@ class DagRun(Base, LoggingMixin):
         elif not unfinished.tis and all(leaf_ti.state in State.success_states for leaf_ti in leaf_tis):
             self.log.info("Marking run %s successful", self)
             self.set_state(DagRunState.SUCCESS)
+            if notification:
+                notification(dag_run=self, msg="success")
+
             if execute_callbacks:
                 dag.handle_callback(self, success=True, reason="success", session=session)
             elif dag.has_on_success_callback:
@@ -609,6 +626,9 @@ class DagRun(Base, LoggingMixin):
         elif unfinished.should_schedule and not are_runnable_tasks:
             self.log.error("Task deadlock (no runnable tasks); marking run %s failed", self)
             self.set_state(DagRunState.FAILED)
+            if notification:
+                notification(dag_run=self, msg="all_tasks_deadlocked")
+
             if execute_callbacks:
                 dag.handle_callback(self, success=False, reason="all_tasks_deadlocked", session=session)
             elif dag.has_on_failure_callback:

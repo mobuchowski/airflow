@@ -38,10 +38,12 @@ class ListenerManager:
     """Manage listener registration and provides hook property for calling them."""
 
     def __init__(self):
-        from airflow.listeners import spec
+        from airflow.listeners.spec import dagrun, lifecycle, taskinstance
 
         self.pm = pluggy.PluginManager("airflow")
-        self.pm.add_hookspecs(spec)
+        self.pm.add_hookspecs(lifecycle)
+        self.pm.add_hookspecs(dagrun)
+        self.pm.add_hookspecs(taskinstance)
 
     @property
     def has_listeners(self) -> bool:

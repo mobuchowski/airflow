@@ -17,10 +17,12 @@
 # under the License.
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import logging
 import threading
+from unittest import mock
 from unittest.mock import patch
 
 import pytest
@@ -973,6 +975,35 @@ class TestBackfillJob:
         dagruns = DagRun.find(dag_id=dag.dag_id)
         assert 2 == len(dagruns)
         assert all(run.state == State.SUCCESS for run in dagruns)
+
+    def test_backfill_notifies_dagrun_listener(self, dag_maker):
+        dag = self._get_dummy_dag(dag_maker)
+        dag_run = dag_maker.create_dagrun(state=None)
+
+        calls = []
+
+        def store_calls(dag_run: DagRun, msg: str):
+            calls.append(copy.deepcopy(dag_run))
+
+        start_date = DEFAULT_DATE - datetime.timedelta(hours=1)
+        end_date = DEFAULT_DATE
+
+        executor = MockExecutor()
+        job = BackfillJob(
+            dag=dag, start_date=start_date, end_date=end_date, executor=executor, donot_pickle=True
+        )
+        job.notify_dagrun_state_changed = store_calls
+        job.notification_threadpool = mock.MagicMock()
+        job.run()
+
+        assert len(calls) == 2
+        assert calls[0].dag.dag_id == dag_run.dag.dag_id
+        assert calls[0].run_id == dag_run.run_id
+        assert calls[0].state == DagRunState.RUNNING
+
+        assert calls[1].dag.dag_id == dag_run.dag.dag_id
+        assert calls[1].run_id == dag_run.run_id
+        assert calls[1].state == DagRunState.SUCCESS
 
     def test_backfill_max_limit_check(self, dag_maker):
         dag_id = "test_backfill_max_limit_check"

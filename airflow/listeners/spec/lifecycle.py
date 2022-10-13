@@ -17,35 +17,22 @@
 # under the License.
 from __future__ import annotations
 
-from airflow.listeners import hookimpl
-from airflow.utils.state import State
+from pluggy import HookspecMarker
 
-has_started = False
-state = []
+hookspec = HookspecMarker("airflow")
 
 
-@hookimpl
+@hookspec
 def on_starting():
-    global has_started
-    has_started = True
+    """
+    Called when Airflow component (scheduler, worker) starts.
+    It's guaranteed this will be called before any other plugin method.
+    """
 
 
-@hookimpl
-def on_task_instance_running(previous_state, task_instance, session):
-    state.append(State.RUNNING)
-
-
-@hookimpl
-def on_task_instance_success(previous_state, task_instance, session):
-    state.append(State.SUCCESS)
-
-
-@hookimpl
-def on_task_instance_failed(previous_state, task_instance, session):
-    state.append(State.FAILED)
-
-
-def clear():
-    global has_started, state
-    has_started = False
-    state = []
+@hookspec
+def before_stopping():
+    """
+    Called before Airflow component (scheduler, worker) stops.
+    It's guaranteed this will be called after any other plugin method.
+    """

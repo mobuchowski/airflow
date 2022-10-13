@@ -17,35 +17,26 @@
 # under the License.
 from __future__ import annotations
 
-from airflow.listeners import hookimpl
-from airflow.utils.state import State
+from typing import TYPE_CHECKING
 
-has_started = False
-state = []
+from pluggy import HookspecMarker
 
+if TYPE_CHECKING:
+    from airflow.models.dagrun import DagRun
 
-@hookimpl
-def on_starting():
-    global has_started
-    has_started = True
+hookspec = HookspecMarker("airflow")
 
 
-@hookimpl
-def on_task_instance_running(previous_state, task_instance, session):
-    state.append(State.RUNNING)
+@hookspec
+def on_dag_run_running(dag_run: DagRun, msg: str):
+    """Called when dag run state changes to RUNNING."""
 
 
-@hookimpl
-def on_task_instance_success(previous_state, task_instance, session):
-    state.append(State.SUCCESS)
+@hookspec
+def on_dag_run_success(dag_run: DagRun, msg: str):
+    """Called when dag run state changes to SUCCESS."""
 
 
-@hookimpl
-def on_task_instance_failed(previous_state, task_instance, session):
-    state.append(State.FAILED)
-
-
-def clear():
-    global has_started, state
-    has_started = False
-    state = []
+@hookspec
+def on_dag_run_failed(dag_run: DagRun, msg: str):
+    """Called when dag run state changes to FAIL."""

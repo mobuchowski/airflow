@@ -1,4 +1,3 @@
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,37 +14,3 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from __future__ import annotations
-
-from airflow.listeners import hookimpl
-from airflow.utils.state import State
-
-has_started = False
-state = []
-
-
-@hookimpl
-def on_starting():
-    global has_started
-    has_started = True
-
-
-@hookimpl
-def on_task_instance_running(previous_state, task_instance, session):
-    state.append(State.RUNNING)
-
-
-@hookimpl
-def on_task_instance_success(previous_state, task_instance, session):
-    state.append(State.SUCCESS)
-
-
-@hookimpl
-def on_task_instance_failed(previous_state, task_instance, session):
-    state.append(State.FAILED)
-
-
-def clear():
-    global has_started, state
-    has_started = False
-    state = []

@@ -37,6 +37,7 @@ from airflow.exceptions import (
 )
 from airflow.executors import executor_constants
 from airflow.jobs.base_job import BaseJob
+from airflow.listeners.listener import get_listener_manager
 from airflow.models import DAG, DagPickle
 from airflow.models.dagrun import DagRun
 from airflow.models.taskinstance import TaskInstance, TaskInstanceKey
@@ -336,6 +337,8 @@ class BackfillJob(BaseJob):
         run.state = DagRunState.RUNNING
         run.run_type = DagRunType.BACKFILL_JOB
         run.verify_integrity(session=session)
+
+        self.notify_dagrun_state_changed(dag_run=run, msg="started")
         return run
 
     @provide_session
@@ -642,7 +645,10 @@ class BackfillJob(BaseJob):
             # update dag run state
             _dag_runs = ti_status.active_runs[:]
             for run in _dag_runs:
-                run.update_state(session=session)
+                run.update_state(
+                    session=session,
+                    notification=self.notify_dagrun_state_changed,
+                )
                 if run.state in State.finished:
                     ti_status.finished_runs += 1
                     ti_status.active_runs.remove(run)
@@ -763,7 +769,7 @@ class BackfillJob(BaseJob):
         :return: None
         """
         for dag_run in dag_runs:
-            dag_run.update_state()
+            dag_run.update_state(notification=self.notify_dagrun_state_changed)
             if dag_run.state not in State.finished:
                 dag_run.set_state(DagRunState.FAILED)
             session.merge(dag_run)
@@ -946,3 +952,12 @@ class BackfillJob(BaseJob):
 
         self.log.info("Reset the following %s TaskInstances:\n\t%s", len(reset_tis), task_instance_str)
         return len(reset_tis)
+
+    def notify_dagrun_state_changed(self, dag_run: DagRun, msg: str = ""):
+        if dag_run.state == DagRunState.RUNNING:
+            get_listener_manager().hook.on_dag_run_running(dag_run=dag_run, msg=msg)
+        elif dag_run.state == DagRunState.SUCCESS:
+            get_listener_manager().hook.on_dag_run_success(dag_run=dag_run, msg=msg)
+        elif dag_run.state == DagRunState.FAILED:
+            get_listener_manager().hook.on_dag_run_failed(dag_run=dag_run, msg=msg)
+        # deliberately not notifying on QUEUED
