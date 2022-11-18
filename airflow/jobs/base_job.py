@@ -111,6 +111,7 @@ class BaseJob(Base, LoggingMixin):
             self.heartrate = heartrate
         self.unixname = getuser()
         self.max_tis_per_query: int = conf.getint("scheduler", "max_tis_per_query")
+        self.log.error("JOB STARTING")
         get_listener_manager().hook.on_starting()
         super().__init__(*args, **kwargs)
 
@@ -151,6 +152,7 @@ class BaseJob(Base, LoggingMixin):
     @provide_session
     def kill(self, session=None):
         """Handles on_kill callback and updates state in database."""
+        self.log.error(f"KILL {self.__class__.__name__}", )
         get_listener_manager().hook.before_stopping()
         job = session.query(BaseJob).filter(BaseJob.id == self.id).first()
         job.end_date = timezone.utcnow()
@@ -255,10 +257,11 @@ class BaseJob(Base, LoggingMixin):
                 self.state = State.FAILED
                 raise
             finally:
-                get_listener_manager().hook.before_stopping()
                 self.end_date = timezone.utcnow()
                 session.merge(self)
                 session.commit()
+                self.log.error(f"BEFORE_STOPPING_CL {self.__class__.__name__}", )
+                get_listener_manager().hook.before_stopping()
 
         Stats.incr(self.__class__.__name__.lower() + "_end", 1, 1)
 

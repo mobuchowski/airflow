@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from sqlalchemy import event
 from sqlalchemy.orm import Session
@@ -57,14 +58,17 @@ def on_task_instance_state_session_flush(session, flush_context):
             previous_state = deleted[0] if deleted else State.NONE
 
             if State.RUNNING in added:
+                logger.error(f"SESSION FLUSH RUNNING ON PID {os.getpid()}")
                 get_listener_manager().hook.on_task_instance_running(
                     previous_state=previous_state, task_instance=state.object, session=session
                 )
             elif State.FAILED in added:
+                logger.error(f"SESSION FLUSH FAILED ON PID {os.getpid()}")
                 get_listener_manager().hook.on_task_instance_failed(
                     previous_state=previous_state, task_instance=state.object, session=session
                 )
             elif State.SUCCESS in added:
+                logger.error(f"SESSION FLUSH SUCCESS ON PID {os.getpid()}")
                 get_listener_manager().hook.on_task_instance_success(
                     previous_state=previous_state, task_instance=state.object, session=session
                 )

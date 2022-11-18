@@ -25,7 +25,7 @@ hookspec = HookspecMarker("airflow")
 @hookspec
 def on_starting():
     """
-    Called when Airflow component (scheduler, worker) starts.
+    Called when Airflow component (scheduler, worker, task runner) starts.
     It's guaranteed this will be called before any other plugin method.
     """
 
@@ -33,6 +33,6 @@ def on_starting():
 @hookspec
 def before_stopping():
     """
-    Called before Airflow component (scheduler, worker) stops.
+    Called before Airflow component (scheduler, worker, task runner) stops.
     It's guaranteed this will be called after any other plugin method.
     """

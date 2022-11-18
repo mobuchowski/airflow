@@ -24,6 +24,7 @@ import os
 import psutil
 from setproctitle import setproctitle
 
+from airflow.listeners.listener import get_listener_manager
 from airflow.settings import CAN_FORK
 from airflow.task.task_runner.base_task_runner import BaseTaskRunner
 from airflow.utils.dag_parsing_context import _airflow_parsing_context_manager
@@ -87,6 +88,8 @@ class StandardTaskRunner(BaseTaskRunner):
                 proc_title += " {0.job_id}"
             setproctitle(proc_title.format(args))
             return_code = 0
+            get_listener_manager().hook.on_starting()
+
             try:
                 with _airflow_parsing_context_manager(
                     dag_id=self._task_instance.dag_id,
@@ -117,6 +120,7 @@ class StandardTaskRunner(BaseTaskRunner):
             finally:
                 try:
                     # Explicitly flush any pending exception to Sentry and logging if enabled
+                    get_listener_manager().hook.before_stopping()
                     Sentry.flush()
                     logging.shutdown()
                 except BaseException:
