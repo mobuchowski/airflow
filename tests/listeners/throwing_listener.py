@@ -22,3 +22,7 @@ from airflow.listeners import hookimpl
 @hookimpl
 def on_task_instance_success(previous_state, task_instance, session):
     raise RuntimeError()
+
+
+def clear():
+    pass

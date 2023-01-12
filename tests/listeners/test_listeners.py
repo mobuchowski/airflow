@@ -18,7 +18,7 @@
 import pytest as pytest
 
 from airflow import AirflowException
-from airflow.listeners import events, hookimpl
+from airflow.listeners import hookimpl
 from airflow.listeners.listener import get_listener_manager
 from airflow.operators.bash import BashOperator
 from airflow.utils import timezone
@@ -26,26 +26,21 @@ from airflow.utils.session import provide_session
 from airflow.utils.state import State
 from tests.listeners import full_listener, partial_listener, throwing_listener
 
+LISTENERS = [
+    full_listener,
+    partial_listener,
+    throwing_listener,
+]
+
 DAG_ID = "test_listener_dag"
 TASK_ID = "test_listener_task"
 EXECUTION_DATE = timezone.utcnow()
 
 
-@pytest.fixture(scope="module", autouse=True)
-def register_events():
-    events.register_task_instance_state_events()
-    yield
-    events.unregister_task_instance_state_events()
-
-
 @pytest.fixture(autouse=True)
 def clean_listener_manager():
-    lm = get_listener_manager()
-    lm.clear()
-    yield
-    lm = get_listener_manager()
-    lm.clear()
-    full_listener.state = []
+    for listener in LISTENERS:
+        listener.clear()
 
 
 @provide_session
@@ -99,8 +94,22 @@ def test_listener_captures_failed_taskinstances(create_task_instance_of_operator
     with pytest.raises(AirflowException):
         ti._run_raw_task()
 
-    assert full_listener.state == [State.FAILED]
-    assert len(full_listener.state) == 1
+    assert full_listener.state == [State.RUNNING, State.FAILED]
+    assert len(full_listener.state) == 2
+
+
+@provide_session
+def test_listener_captures_longrunning_taskinstances(create_task_instance_of_operator, session=None):
+    lm = get_listener_manager()
+    lm.add_listener(full_listener)
+
+    ti = create_task_instance_of_operator(
+        BashOperator, dag_id=DAG_ID, execution_date=EXECUTION_DATE, task_id=TASK_ID, bash_command="sleep 5"
+    )
+    ti._run_raw_task()
+
+    assert full_listener.state == [State.RUNNING, State.SUCCESS]
+    assert len(full_listener.state) == 2
 
 
 def test_non_module_listener_is_not_registered():

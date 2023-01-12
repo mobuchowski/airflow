@@ -15,13 +15,34 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+from __future__ import annotations
+
+import logging
 
 from airflow.listeners import hookimpl
 
+log = logging.getLogger(__name__)
 
-@hookimpl
-def on_task_instance_running(previous_state, task_instance, session):
-    pass
+
+class FileWriteListener:
+    def __init__(self, path):
+        self.path = path
+
+    def write(self, line: str):
+        with open(self.path, "a") as f:
+            f.write(line + "\n")
+
+    @hookimpl
+    def on_task_instance_running(self, previous_state, task_instance, session):
+        self.write("on_task_instance_running")
+
+    @hookimpl
+    def on_task_instance_success(self, previous_state, task_instance, session):
+        self.write("on_task_instance_success")
+
+    @hookimpl
+    def on_task_instance_failed(self, previous_state, task_instance, session):
+        self.write("on_task_instance_failed")
 
 
 def clear():
