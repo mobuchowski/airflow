@@ -27,3 +27,10 @@ This product contains a modified portion of 'Chakra UI' developed by Segun Adeba
 (https://github.com/chakra-ui/chakra-ui).
 
 * Copyright 2019, Segun Adebayo
+
+OpenLineage
+-----
+This product contains a modified portion of OpenLineage Airflow Integration developed by OpenLineage authors.
+(https://github.com/OpenLineage/OpenLineage).
+
+* Copyright 2018-2023 contributors to the OpenLineage project
