@@ -3,28 +3,24 @@
 
 import os
 
-# Provide empty plugin for older version
 from airflow.providers.openlineage.plugins.macros import lineage_parent_id, lineage_run_id
-from pkg_resources import parse_version
-
 from airflow.plugins_manager import AirflowPlugin
-from airflow.version import version as AIRFLOW_VERSION
 
 
 def _is_disabled():
     return os.getenv("OPENLINEAGE_DISABLED", None) in [True, 'true', "True"]
 
 
-if parse_version(AIRFLOW_VERSION) \
-        < parse_version("2.3.0.dev0") or _is_disabled():      # type: ignore
-    class OpenLineagePlugin(AirflowPlugin):
-        name = "OpenLineagePlugin"
+if _is_disabled():  # type: ignore
+    # Provide empty plugin when OL is disabled
+    class OpenLineageProviderPlugin(AirflowPlugin):
+        name = "OpenLineageProviderPlugin"
         macros = [lineage_run_id, lineage_parent_id]
 else:
-    from airflow.providers.openlineage.plugins import listener
+    from airflow.providers.openlineage.plugins.listener import ListenerPlugin
 
     # Provide entrypoint airflow plugin that registers listener module
-    class OpenLineagePlugin(AirflowPlugin):     # type: ignore
-        name = "OpenLineagePlugin"
-        listeners = [listener]
+    class OpenLineageProviderPlugin(AirflowPlugin):     # type: ignore
+        name = "OpenLineageProviderPlugin"
+        listeners = [ListenerPlugin]
         macros = [lineage_run_id, lineage_parent_id]

@@ -66,7 +66,7 @@ class ListenerPlugin:
     @hookimpl
     def on_task_instance_running(
         self,
-        previous_state,
+        previous_state,  # This will always be QUEUED
         task_instance: "TaskInstance",
         session: "Session"
     ):
@@ -77,25 +77,27 @@ class ListenerPlugin:
 
         self.log.debug("OpenLineage listener got notification about task instance start")
         dagrun = task_instance.dag_run
-        dag = task_instance.task.dag
-
-        parent_run_id = self.adapter.build_dag_run_id(dag.dag_id, dagrun.run_id)
-        run_id = str(uuid.uuid4())
-
-        self.run_data_holder.set_active_run(task_instance, run_id)
+        task = task_instance.task
+        dag = task.dag
 
         @print_exception
         def on_running():
-            task = task_instance.task
+            # that's a workaround to detect task running from deferred state
+            # we return here because Airflow 2.3 needs task from deferred state
+            if task_instance.next_method is not None:
+                return
+            parent_run_id = self.adapter.build_dag_run_id(dag.dag_id, dagrun.run_id)
+
             task_uuid = self.adapter.build_task_instance_run_id(
                 task.task_id, task_instance.execution_date, task_instance.try_number
             )
-            task_metadata = self.extractor_manager.extract_metadata(dagrun, task)
+
+            task_metadata = self.extractor_manager.extract_metadata(dagrun, self.task)
 
             start, end = get_dagrun_start_end(dagrun=dagrun, dag=dag)
 
             self.adapter.start_task(
-                run_id=run_id,
+                run_id=task_uuid,
                 job_name=get_job_name(task),
                 job_description=dag.description,
                 event_time=DagUtils.get_start_time(task_instance.start_date),
@@ -114,12 +116,6 @@ class ListenerPlugin:
                     **get_airflow_run_facet(dagrun, dag, task_instance, task, task_uuid)
                 }
             )
-
-        from airflow import settings
-        try:
-            settings.reconfigure_orm(disable_connection_pool=True)
-        except Exception as e:
-            print(e)
 
         self.executor.submit(on_running)
 
