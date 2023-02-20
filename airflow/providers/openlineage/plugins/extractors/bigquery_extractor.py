@@ -1,13 +1,14 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import traceback
-from typing import List, Optional
+
+from openlineage.client.facet import SqlJobFacet
+from openlineage.common.provider.bigquery import BigQueryDatasetsProvider, BigQueryErrorRunFacet
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
 from airflow.providers.openlineage.plugins.utils import get_job_name, try_import_from_string
-from openlineage.client.facet import SqlJobFacet
-from openlineage.common.provider.bigquery import BigQueryDatasetsProvider, BigQueryErrorRunFacet
 
 _BIGQUERY_CONN_URL = 'bigquery'
 
@@ -17,13 +18,13 @@ class BigQueryExtractor(BaseExtractor):
         super().__init__(operator)
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['BigQueryOperator', 'BigQueryExecuteQueryOperator']
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         return None
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         self.log.debug(f"extract_on_complete({task_instance})")
 
         try:

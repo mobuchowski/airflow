@@ -1,13 +1,13 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import socket
-from typing import List, Optional
 
 import paramiko
-from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from openlineage.common.dataset import Dataset, Source
+from openlineage.client.run import Dataset
 
+from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
 from airflow.providers.sftp.hooks.sftp import SFTPHook
 from airflow.providers.sftp.operators.sftp import SFTPOperation
 
@@ -15,10 +15,10 @@ from airflow.providers.sftp.operators.sftp import SFTPOperation
 class SFTPExtractor(BaseExtractor):
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["SFTPOperator"]
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         scheme = "file"
 
         local_host = socket.gethostname()
@@ -72,11 +72,11 @@ class SFTPExtractor(BaseExtractor):
             remote_filepath = self.operator.remote_filepath
 
         local_datasets = [
-            Dataset(source=self._get_source(scheme, local_host, None, path), name=path)
+            Dataset(namespace=self._get_namespace(scheme, local_host, None, path), name=path)
             for path in local_filepath
         ]
         remote_datasets = [
-            Dataset(source=self._get_source(scheme, remote_host, remote_port, path), name=path)
+            Dataset(namespace=self._get_namespace(scheme, remote_host, remote_port, path), name=path)
             for path in remote_filepath
         ]
 
@@ -89,17 +89,13 @@ class SFTPExtractor(BaseExtractor):
 
         return TaskMetadata(
             name=f"{self.operator.dag_id}.{self.operator.task_id}",
-            inputs=[ds.to_openlineage_dataset() for ds in inputs],
-            outputs=[ds.to_openlineage_dataset() for ds in outputs],
+            inputs=inputs,
+            outputs=outputs,
             run_facets={},
             job_facets={},
         )
 
-    def _get_source(self, scheme, host, port, path) -> Source:
+    def _get_namespace(self, scheme, host, port, path) -> str:
         port = port or paramiko.config.SSH_PORT
         authority = f"{host}:{port}"
-        return Source(
-            scheme=scheme,
-            authority=authority,
-            connection_url=f"{scheme}://{authority}{path}"
-        )
+        return f"{scheme}://{authority}"

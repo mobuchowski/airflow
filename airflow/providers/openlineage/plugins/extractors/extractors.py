@@ -1,8 +1,8 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import os
-from typing import Optional, Type
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, DefaultExtractor
 from airflow.providers.openlineage.plugins.extractors.sql_check_extractors import get_check_extractors
@@ -131,10 +131,10 @@ class Extractors:
                 for operator_class in extractor.get_operator_classnames():
                     self.extractors[operator_class] = extractor
 
-    def add_extractor(self, operator: str, extractor: Type):
+    def add_extractor(self, operator: str, extractor: type):
         self.extractors[operator] = extractor
 
-    def get_extractor_class(self, clazz: Type) -> Optional[Type[BaseExtractor]]:
+    def get_extractor_class(self, clazz: type) -> type[BaseExtractor] | None:
         name = clazz.__name__
         if name in self.extractors:
             return self.extractors[name]

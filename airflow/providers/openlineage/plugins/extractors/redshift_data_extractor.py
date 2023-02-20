@@ -1,29 +1,29 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import List, Optional
-
-from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from airflow.providers.openlineage.plugins.utils import get_job_name
 from openlineage.client.facet import SqlJobFacet
 from openlineage.common.provider.redshift_data import RedshiftDataDatasetsProvider
 from openlineage.common.sql import SqlMeta, parse
 
+from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
+from airflow.providers.openlineage.plugins.utils import get_job_name
+
 
 class RedshiftDataExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["RedshiftDataOperator"]
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         return None
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         self.log.debug(f"extract_on_complete({task_instance})")
         job_facets = {"sql": SqlJobFacet(self.operator.sql)}
 
         self.log.debug(f"Sending SQL to parser: {self.operator.sql}")
-        sql_meta: Optional[SqlMeta] = parse(
+        sql_meta: SqlMeta | None = parse(
             self.operator.sql,
             dialect=self.dialect,
             default_schema=self.default_schema

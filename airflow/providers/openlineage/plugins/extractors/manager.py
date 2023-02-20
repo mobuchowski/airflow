@@ -1,22 +1,26 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
-from typing import List, Optional, Type
 
 from airflow.providers.openlineage.plugins.extractors import BaseExtractor, Extractors, TaskMetadata
-from airflow.providers.openlineage.plugins.facets import UnknownOperatorAttributeRunFacet, UnknownOperatorInstance
+from airflow.providers.openlineage.plugins.facets import (
+    UnknownOperatorAttributeRunFacet,
+    UnknownOperatorInstance,
+)
 from airflow.providers.openlineage.plugins.utils import get_job_name, get_operator_class
 
 
 class ExtractorManager:
     """Class abstracting management of custom extractors."""
+
     def __init__(self):
         self.extractors = {}
         self.task_to_extractor = Extractors()
         self.log = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
 
-    def add_extractor(self, operator, extractor: Type[BaseExtractor]):
+    def add_extractor(self, operator, extractor: type[BaseExtractor]):
         self.task_to_extractor.add_extractor(operator, extractor)
 
     def extract_metadata(
@@ -85,7 +89,7 @@ class ExtractorManager:
 
         return TaskMetadata(name=get_job_name(task))
 
-    def _get_extractor(self, task) -> Optional[BaseExtractor]:
+    def _get_extractor(self, task) -> BaseExtractor | None:
         self.task_to_extractor.instantiate_abstract_extractors(task)
         if task.task_id in self.extractors:
             return self.extractors[task.task_id]
@@ -99,8 +103,8 @@ class ExtractorManager:
     def extract_inlets_and_outlets(
             self,
             task_metadata: TaskMetadata,
-            inlets: List,
-            outlets: List,
+            inlets: list,
+            outlets: list,
     ):
         from airflow.providers.openlineage.plugins.extractors.converters import convert_to_dataset
 

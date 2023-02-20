@@ -1,7 +1,7 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import List
 from urllib.parse import urlparse
 
 from airflow.providers.openlineage.plugins.extractors.sql_extractor import SqlExtractor
@@ -26,7 +26,7 @@ class MySqlExtractor(SqlExtractor):
         return None
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["MySqlOperator"]
 
     def _get_scheme(self) -> str:

@@ -1,13 +1,14 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import Dict, List
 from urllib.parse import urlparse
+
+from openlineage.client.facet import BaseFacet, ExternalQueryRunFacet
+from openlineage.common.provider.snowflake import fix_snowflake_sqlalchemy_uri
 
 from airflow.providers.openlineage.plugins.extractors.dbapi_utils import execute_query_on_hook
 from airflow.providers.openlineage.plugins.extractors.sql_extractor import SqlExtractor
-from openlineage.client.facet import BaseFacet, ExternalQueryRunFacet
-from openlineage.common.provider.snowflake import fix_snowflake_sqlalchemy_uri
 
 
 class SnowflakeExtractor(SqlExtractor):
@@ -24,7 +25,7 @@ class SnowflakeExtractor(SqlExtractor):
     _is_uppercase_names = True
 
     # extra prefix should be deprecated soon in Airflow
-    _whitelist_query_params: List[str] = ["warehouse", "account", "database", "region"] + [
+    _whitelist_query_params: list[str] = ["warehouse", "account", "database", "region"] + [
         "extra__snowflake__" + el
         for el in ["warehouse", "account", "database", "region"]
     ]
@@ -34,7 +35,7 @@ class SnowflakeExtractor(SqlExtractor):
         return "snowflake"
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["SnowflakeOperator", "SnowflakeOperatorAsync"]
 
     @property
@@ -58,7 +59,7 @@ class SnowflakeExtractor(SqlExtractor):
         else:
             return self.operator.get_hook()
 
-    def _get_query_ids(self) -> List[str]:
+    def _get_query_ids(self) -> list[str]:
         if hasattr(self.operator, "query_ids"):
             return self.operator.query_ids
         return []
@@ -66,12 +67,12 @@ class SnowflakeExtractor(SqlExtractor):
     def _get_scheme(self):
         return "snowflake"
 
-    def _get_db_specific_run_facets(self, source, *_) -> Dict[str, BaseFacet]:
+    def _get_db_specific_run_facets(self, namespace: str, *_) -> dict[str, BaseFacet]:
         query_ids = self._get_query_ids()
         run_facets = {}
         if len(query_ids) == 1:
             run_facets["externalQuery"] = ExternalQueryRunFacet(
-                externalQueryId=query_ids[0], source=source.name
+                externalQueryId=query_ids[0], source=namespace
             )
         elif len(query_ids) > 1:
             self.log.warning(

@@ -1,21 +1,22 @@
 # Copyright 2018-2022 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
-from typing import List, Optional
+
+from openlineage.client.run import Dataset
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from openlineage.client.run import Dataset
 
 log = logging.getLogger(__name__)
 
 
 class GCSToGCSExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['GCSToGCSOperator']
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         if self.operator.source_object:
             input_objects = [Dataset(
                 namespace=f"gs://{self.operator.source_bucket}",
@@ -41,5 +42,5 @@ class GCSToGCSExtractor(BaseExtractor):
             outputs=[output_object],
         )
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         pass

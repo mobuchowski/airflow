@@ -1,37 +1,38 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import attr
-from airflow.providers.openlineage.plugins.utils import LoggingMixin, get_job_name
 from openlineage.client.facet import BaseFacet
 from openlineage.client.run import Dataset
+
+from airflow.providers.openlineage.plugins.utils import LoggingMixin, get_job_name
 
 
 @attr.s
 class OperatorLineage:
-    inputs: List[Dataset] = attr.ib(factory=list)
-    outputs: List[Dataset] = attr.ib(factory=list)
-    run_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
-    job_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
+    inputs: list[Dataset] = attr.ib(factory=list)
+    outputs: list[Dataset] = attr.ib(factory=list)
+    run_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
+    job_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
 
 
 @attr.s
 class TaskMetadata:
     name: str = attr.ib()  # deprecated
-    inputs: List[Dataset] = attr.ib(factory=list)
-    outputs: List[Dataset] = attr.ib(factory=list)
-    run_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
-    job_facets: Dict[str, BaseFacet] = attr.ib(factory=dict)
+    inputs: list[Dataset] = attr.ib(factory=list)
+    outputs: list[Dataset] = attr.ib(factory=list)
+    run_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
+    job_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
 
 
 class BaseExtractor(ABC, LoggingMixin):
 
-    _whitelist_query_params: List[str] = []
+    _whitelist_query_params: list[str] = []
 
     def __init__(self, operator):
         super().__init__()
@@ -43,7 +44,7 @@ class BaseExtractor(ABC, LoggingMixin):
         pass
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         """
         Implement this method returning list of operators that extractor works for.
         Particularly, in Airflow 2 some operators are deprecated and simply subclass the new
@@ -58,10 +59,10 @@ class BaseExtractor(ABC, LoggingMixin):
         assert self.operator.__class__.__name__ in self.get_operator_classnames()
 
     @abstractmethod
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         pass
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         return self.extract()
 
     @classmethod
@@ -71,7 +72,6 @@ class BaseExtractor(ABC, LoggingMixin):
         the connection URI via AIRFLOW_CONN_<conn_id>, else fallback on querying
         the Airflow's connection table.
         """
-
         conn_uri = conn.get_uri()
         parsed = urlparse(conn_uri)
 
@@ -91,14 +91,14 @@ class BaseExtractor(ABC, LoggingMixin):
 
 class DefaultExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         """
         Default extractor is chosen not on the classname basis, but
         by existence of get_openlineage_facets method on operator
         """
         return []
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         try:
             return self._get_openlineage_facets(
                 self.operator.get_openlineage_facets_on_start
@@ -106,7 +106,7 @@ class DefaultExtractor(BaseExtractor):
         except AttributeError:
             return None
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         on_complete = getattr(self.operator, 'get_openlineage_facets_on_complete', None)
         if on_complete and callable(on_complete):
             return self._get_openlineage_facets(
@@ -116,7 +116,7 @@ class DefaultExtractor(BaseExtractor):
 
     def _get_openlineage_facets(
         self, get_facets_method, *args
-    ) -> Optional[TaskMetadata]:
+    ) -> TaskMetadata | None:
         facets: OperatorLineage = get_facets_method(*args)
         return TaskMetadata(
             name=get_job_name(task=self.operator),

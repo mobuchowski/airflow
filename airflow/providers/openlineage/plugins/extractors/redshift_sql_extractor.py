@@ -1,9 +1,11 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING
 
 import boto3
+
 from airflow.providers.openlineage.plugins.extractors.postgres_extractor import PostgresExtractor
 
 if TYPE_CHECKING:
@@ -12,10 +14,10 @@ if TYPE_CHECKING:
 
 class RedshiftSQLExtractor(PostgresExtractor):
 
-    _whitelist_query_params: List[str] = ["cluster_identifier", "region"]
+    _whitelist_query_params: list[str] = ["cluster_identifier", "region"]
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["RedshiftSQLOperator"]
 
     @property

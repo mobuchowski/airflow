@@ -1,11 +1,12 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
-from typing import List, Optional
+
+from openlineage.client.run import Dataset
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from openlineage.client.run import Dataset
 
 log = logging.getLogger(__name__)
 
@@ -20,13 +21,13 @@ def generate_s3_dataset(path) -> Dataset:
 
 class SageMakerProcessingExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['SageMakerProcessingOperator', 'SageMakerProcessingOperatorAsync']
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         pass
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
 
         xcom_values = task_instance.xcom_pull(task_ids=task_instance.task_id)
 
@@ -70,13 +71,13 @@ class SageMakerProcessingExtractor(BaseExtractor):
 
 class SageMakerTransformExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['SageMakerTransformOperator', 'SageMakerTransformOperatorAsync']
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         pass
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         log.debug(f"extract_on_complete({task_instance})")
 
         xcom_values = task_instance.xcom_pull(task_ids=task_instance.task_id)
@@ -136,13 +137,13 @@ class SageMakerTransformExtractor(BaseExtractor):
 
 class SageMakerTrainingExtractor(BaseExtractor):
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['SageMakerTrainingOperator', 'SageMakerTrainingOperatorAsync']
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         pass
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         log.debug(f"extract_on_complete({task_instance})")
 
         xcom_values = task_instance.xcom_pull(task_ids=task_instance.task_id)

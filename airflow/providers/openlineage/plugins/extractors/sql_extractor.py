@@ -1,17 +1,11 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Iterable, Optional
 from urllib.parse import urlparse
 
-from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from airflow.providers.openlineage.plugins.extractors.dbapi_utils import (
-    TablesHierarchy,
-    create_information_schema_query,
-    get_table_schemas,
-)
-from airflow.providers.openlineage.plugins.utils import get_connection
 from openlineage.client.facet import (
     BaseFacet,
     ColumnLineageDatasetFacet,
@@ -21,8 +15,16 @@ from openlineage.client.facet import (
     ExtractionErrorRunFacet,
     SqlJobFacet,
 )
-from openlineage.common.dataset import Dataset, Source
+from openlineage.client.run import Dataset
 from openlineage.common.sql import DbTableMeta, SqlMeta, parse
+
+from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
+from airflow.providers.openlineage.plugins.extractors.dbapi_utils import (
+    TablesHierarchy,
+    create_information_schema_query,
+    get_table_schemas,
+)
+from airflow.providers.openlineage.plugins.utils import get_connection
 
 if TYPE_CHECKING:
     from airflow.hooks.base import BaseHook
@@ -46,17 +48,17 @@ class SqlExtractor(BaseExtractor):
         super().__init__(*args, **kwargs)
         self._conn = None
         self._hook = None
-        self._database: Optional[str] = None
-        self._scheme: Optional[str] = None
+        self._database: str | None = None
+        self._scheme: str | None = None
 
     def extract(self) -> TaskMetadata:
         task_name = f"{self.operator.dag_id}.{self.operator.task_id}"
         job_facets = {"sql": SqlJobFacet(query=self._normalize_sql(self.operator.sql))}
-        run_facets: Dict = {}
+        run_facets: dict = {}
 
         # (1) Parse sql statement to obtain input / output tables.
         self.log.debug(f"Sending SQL to parser: {self.operator.sql}")
-        sql_meta: Optional[SqlMeta] = parse(
+        sql_meta: SqlMeta | None = parse(
             self.operator.sql,
             dialect=self.dialect,
             default_schema=self.default_schema
@@ -88,12 +90,8 @@ class SqlExtractor(BaseExtractor):
                 ]
             )
 
-        # (2) Construct source object
-        source = Source(
-            scheme=self.scheme,
-            authority=self._get_authority(),
-            connection_url=self.get_connection_uri(self.conn),
-        )
+        authority = self._get_authority()
+        namespace = f'{self.scheme}://{authority}' if authority else self.scheme
 
         database = getattr(self.operator, "database", None)
         if not database:
@@ -105,7 +103,7 @@ class SqlExtractor(BaseExtractor):
         # {schema_name}.{table_name}
         inputs, outputs = get_table_schemas(
             self.hook,
-            source,
+            namespace,
             database,
             self._information_schema_query(sql_meta.in_tables)
             if sql_meta.in_tables
@@ -124,15 +122,15 @@ class SqlExtractor(BaseExtractor):
                 self.attach_column_facet(ds, sql_meta)
 
         db_specific_run_facets = self._get_db_specific_run_facets(
-            source, inputs, outputs
+            namespace, inputs, outputs
         )
 
         run_facets = {**run_facets, **db_specific_run_facets}
 
         return TaskMetadata(
             name=task_name,
-            inputs=[ds.to_openlineage_dataset() for ds in inputs],
-            outputs=[ds.to_openlineage_dataset() for ds in outputs],
+            inputs=outputs,
+            outputs=outputs,
             run_facets=run_facets,
             job_facets=job_facets,
         )
@@ -163,23 +161,23 @@ class SqlExtractor(BaseExtractor):
         return self._conn  # type: ignore
 
     @property
-    def scheme(self) -> Optional[str]:
+    def scheme(self) -> str | None:
         if not self._scheme:
             self._scheme = self._get_scheme()
         return self._scheme
 
     @property
-    def database(self) -> Optional[str]:
+    def database(self) -> str | None:
         if not self._database:
             self._database = self._get_database()
         return self._database
 
     @abstractmethod
-    def _get_scheme(self) -> Optional[str]:
+    def _get_scheme(self) -> str | None:
         raise NotImplementedError
 
     @abstractmethod
-    def _get_database(self) -> Optional[str]:
+    def _get_database(self) -> str | None:
         raise NotImplementedError
 
     def _get_authority(self) -> str:
@@ -194,16 +192,16 @@ class SqlExtractor(BaseExtractor):
 
     def _get_db_specific_run_facets(
         self,
-        source: Source,
-        inputs: Tuple[List[Dataset], ...],
-        outputs: Tuple[List[Dataset], ...],
-    ) -> Dict[str, BaseFacet]:
+        namespace: str,
+        inputs: list[Dataset],
+        outputs: list[Dataset],
+    ) -> dict[str, BaseFacet]:
         return {}
 
-    def _get_input_facets(self) -> Dict[str, BaseFacet]:
+    def _get_input_facets(self) -> dict[str, BaseFacet]:
         return {}
 
-    def _get_output_facets(self) -> Dict[str, BaseFacet]:
+    def _get_output_facets(self) -> dict[str, BaseFacet]:
         return {}
 
     @staticmethod
@@ -213,12 +211,12 @@ class SqlExtractor(BaseExtractor):
     def attach_column_facet(self, dataset, sql_meta: SqlMeta):
         if not len(sql_meta.column_lineage):
             return
-        dataset.custom_facets['columnLineage'] = ColumnLineageDatasetFacet(
+        dataset.facets['columnLineage'] = ColumnLineageDatasetFacet(
             fields={
                 column_lineage.descendant.name: ColumnLineageDatasetFacetFieldsAdditional(
                     inputFields=[
                         ColumnLineageDatasetFacetFieldsAdditionalInputFields(
-                            namespace=dataset.source.name,
+                            namespace=dataset.namespace,
                             name=column_meta.origin.qualified_name if column_meta.origin else "",
                             field=column_meta.name
                         ) for column_meta in column_lineage.lineage
@@ -230,7 +228,7 @@ class SqlExtractor(BaseExtractor):
             }
         )
 
-    def _information_schema_query(self, tables: List[DbTableMeta]) -> str:
+    def _information_schema_query(self, tables: list[DbTableMeta]) -> str:
         tables_hierarchy = self._get_tables_hierarchy(
             tables,
             normalize_name=self._normalize_name,
@@ -246,7 +244,7 @@ class SqlExtractor(BaseExtractor):
         )
 
     @staticmethod
-    def _normalize_sql(sql: Union[str, Iterable[str]]):
+    def _normalize_sql(sql: str | Iterable[str]):
         if isinstance(sql, str):
             sql = [stmt for stmt in sql.split(";") if stmt != ""]
         sql = [obj for stmt in sql for obj in stmt.split(";") if obj != ""]
@@ -254,9 +252,9 @@ class SqlExtractor(BaseExtractor):
 
     @staticmethod
     def _get_tables_hierarchy(
-        tables: List[DbTableMeta],
+        tables: list[DbTableMeta],
         normalize_name: Callable[[str], str],
-        database: Optional[str] = None,
+        database: str | None = None,
         is_cross_db: bool = False,
     ) -> TablesHierarchy:
         hierarchy: TablesHierarchy = {}

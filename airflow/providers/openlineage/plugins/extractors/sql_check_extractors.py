@@ -1,10 +1,10 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from airflow.providers.openlineage.plugins.extractors.base import TaskMetadata
 from openlineage.client.facet import (
     Assertion,
     BaseFacet,
@@ -12,6 +12,8 @@ from openlineage.client.facet import (
     DataQualityAssertionsDatasetFacet,
     DataQualityMetricsInputDatasetFacet,
 )
+
+from airflow.providers.openlineage.plugins.extractors.base import TaskMetadata
 
 
 def get_check_extractors(super_):
@@ -22,7 +24,7 @@ def get_check_extractors(super_):
         def extract(self) -> TaskMetadata:
             pass
 
-        def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+        def extract_on_complete(self, task_instance) -> TaskMetadata | None:
             from airflow.providers.openlineage.plugins.extractors.bigquery_extractor import BigQueryExtractor
             if issubclass(BigQueryExtractor, BaseSqlCheckExtractor):
                 return super().extract_on_complete(task_instance)
@@ -33,10 +35,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             return {}
 
     class SqlValueCheckExtractor(BaseSqlCheckExtractor):
@@ -44,10 +46,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLValueCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             return {}
 
     class SqlThresholdCheckExtractor(BaseSqlCheckExtractor):
@@ -55,10 +57,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLThresholdCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             return {}
 
     class SqlIntervalCheckExtractor(BaseSqlCheckExtractor):
@@ -66,10 +68,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLIntervalCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             return {}
 
     class SqlColumnCheckExtractor(BaseSqlCheckExtractor):
@@ -77,10 +79,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLColumnCheckOperator', 'BigQueryColumnCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             """
             Function should expect the column_mapping to take the following form:
             {
@@ -116,8 +118,8 @@ def get_check_extractors(super_):
                     return "quantiles"
                 return ""
 
-            facet_data: Dict[str, Any] = {"columnMetrics": defaultdict(dict)}
-            assertion_data: Dict[str, List[Assertion]] = {"assertions": []}
+            facet_data: dict[str, Any] = {"columnMetrics": defaultdict(dict)}
+            assertion_data: dict[str, list[Assertion]] = {"assertions": []}
             for col_name, checks in self.operator.column_mapping.items():
                 col_name = col_name.upper() if self._is_uppercase_names else col_name
                 for check, check_values in checks.items():
@@ -149,10 +151,10 @@ def get_check_extractors(super_):
             super().__init__(operator)
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return ['SQLTableCheckOperator', 'BigQueryTableCheckOperator']
 
-        def _get_input_facets(self) -> Dict[str, BaseFacet]:
+        def _get_input_facets(self) -> dict[str, BaseFacet]:
             """
             Function should expect to take the checks in the following form:
             {
@@ -165,7 +167,7 @@ def get_check_extractors(super_):
             }
             """
             facet_data = {}
-            assertion_data: Dict[str, List[Assertion]] = {"assertions": []}
+            assertion_data: dict[str, list[Assertion]] = {"assertions": []}
             for check, check_values in self.operator.checks.items():
                 assertion_data["assertions"].append(
                     Assertion(

@@ -1,5 +1,6 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
 from airflow.providers.openlineage.plugins.extractors.extractors import Extractors

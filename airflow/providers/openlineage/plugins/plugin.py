@@ -1,10 +1,11 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import os
 
-from airflow.providers.openlineage.plugins.macros import lineage_parent_id, lineage_run_id
 from airflow.plugins_manager import AirflowPlugin
+from airflow.providers.openlineage.plugins.macros import lineage_parent_id, lineage_run_id
 
 
 def _is_disabled():

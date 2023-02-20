@@ -1,13 +1,14 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import socket
 from ftplib import FTP_PORT
-from typing import List, Optional
+
+from openlineage.client.run import Dataset
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
 from airflow.providers.openlineage.plugins.utils import try_import_from_string
-from openlineage.common.dataset import Dataset, Source
 
 FTPOperation = try_import_from_string("airflow.providers.ftp.operators.ftp.FTPOperation")
 
@@ -15,10 +16,10 @@ FTPOperation = try_import_from_string("airflow.providers.ftp.operators.ftp.FTPOp
 class FTPExtractor(BaseExtractor):
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["FTPFileTransmitOperator"]
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         scheme = "file"
 
         local_host = socket.gethostname()
@@ -44,11 +45,11 @@ class FTPExtractor(BaseExtractor):
             remote_filepath = self.operator.remote_filepath
 
         local_datasets = [
-            Dataset(source=self._get_source(scheme, local_host, None, path), name=path)
+            Dataset(namespace=self._get_namespace(scheme, local_host, None, path), name=path)
             for path in local_filepath
         ]
         remote_datasets = [
-            Dataset(source=self._get_source(scheme, remote_host, remote_port, path), name=path)
+            Dataset(namespace=self._get_namespace(scheme, remote_host, remote_port, path), name=path)
             for path in remote_filepath
         ]
 
@@ -61,17 +62,13 @@ class FTPExtractor(BaseExtractor):
 
         return TaskMetadata(
             name=f"{self.operator.dag_id}.{self.operator.task_id}",
-            inputs=[ds.to_openlineage_dataset() for ds in inputs],
-            outputs=[ds.to_openlineage_dataset() for ds in outputs],
+            inputs=inputs,
+            outputs=outputs,
             run_facets={},
             job_facets={},
         )
 
-    def _get_source(self, scheme, host, port, path) -> Source:
+    def _get_namespace(self, scheme, host, port, path) -> str:
         port = port or FTP_PORT
         authority = f"{host}:{port}"
-        return Source(
-            scheme=scheme,
-            authority=authority,
-            connection_url=f"{scheme}://{authority}{path}"
-        )
+        return f"{scheme}://{authority}"

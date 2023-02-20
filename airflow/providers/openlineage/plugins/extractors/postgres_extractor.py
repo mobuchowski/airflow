@@ -1,7 +1,7 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import List
 from urllib.parse import urlparse
 
 from airflow.providers.openlineage.plugins.extractors.sql_extractor import SqlExtractor
@@ -24,7 +24,7 @@ class PostgresExtractor(SqlExtractor):
         return "postgres"
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ['PostgresOperator']
 
     @classmethod

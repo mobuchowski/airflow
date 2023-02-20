@@ -1,12 +1,16 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import os
-from typing import Dict, List, Optional
+
+from openlineage.client.facet import SourceCodeJobFacet
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from airflow.providers.openlineage.plugins.facets import UnknownOperatorAttributeRunFacet, UnknownOperatorInstance
-from openlineage.client.facet import SourceCodeJobFacet
+from airflow.providers.openlineage.plugins.facets import (
+    UnknownOperatorAttributeRunFacet,
+    UnknownOperatorInstance,
+)
 
 
 class BashExtractor(BaseExtractor):
@@ -15,16 +19,17 @@ class BashExtractor(BaseExtractor):
     executed bash command and putting it into SourceCodeJobFacet. It does not extract
     datasets.
     """
+
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["BashOperator"]
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         collect_source = os.environ.get(
             "OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE", "True"
         ).lower() not in ('true', '1', 't')
 
-        job_facet: Dict = {}
+        job_facet: dict = {}
         if collect_source:
             job_facet = {
                 "sourceCode": SourceCodeJobFacet(

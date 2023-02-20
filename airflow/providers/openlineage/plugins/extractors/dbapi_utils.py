@@ -1,13 +1,16 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from contextlib import closing
-from typing import TYPE_CHECKING, Dict, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Iterator, List
 
-from openlineage.common.dataset import Dataset, Source
-from openlineage.common.models import DbColumn, DbTableSchema
-from openlineage.common.sql import DbTableMeta
+import attr
+from openlineage.client.facet import SchemaDatasetFacet, SchemaField
+from openlineage.client.run import Dataset
+from openlineage.common.models import DbTableSchema
 
 if TYPE_CHECKING:
     from airflow.hooks.base import BaseHook
@@ -28,6 +31,30 @@ _TABLE_DATABASE = 5
 TablesHierarchy = Dict[str, Dict[str, List[str]]]
 
 
+@attr.s
+class TableSchema:
+    """Temporary object used to construct OpenLineage Dataset"""
+
+    table: str = attr.ib()
+    schema: str | None = attr.ib()
+    database: str | None = attr.ib()
+    fields: list[SchemaField] = attr.ib()
+
+    def to_dataset(self, namespace: str, database: str | None = None) -> Dataset:
+        # Prefix the table name with database and schema name using
+        # the format: {database_name}.{table_schema}.{table_name}.
+        name = ".".join(filter(lambda x: x is not None, [self.database if self.database else database, self.schema, self.table]))
+        return Dataset(
+            namespace=namespace,
+            name=name,
+            facets={
+                "schema": SchemaDatasetFacet(
+                    fields=self.fields
+                )
+            } if len(self.fields) is not None else {}
+        )
+
+
 def execute_query_on_hook(
     hook: "BaseHook",
     query: str
@@ -39,17 +66,18 @@ def execute_query_on_hook(
 
 def get_table_schemas(
     hook: "BaseHook",
-    source: Source,
+    namespace: str,
     database: str,
-    in_query: Optional[str],
-    out_query: Optional[str],
-) -> Tuple[List[Dataset], ...]:
+    in_query: str | None,
+    out_query: str | None,
+) -> tuple[list[Dataset], ...]:
     """
     This function queries database for table schemas using provided hook.
     Responsibility to provide queries for this function is on particular extractors.
     If query for input or output table isn't provided, the query is skipped.
     """
-    query_schemas = []
+    in_datasets: list[Dataset] = []
+    out_datasets: list[Dataset] = []
 
     # Do not query if we did not get both queries
     if not in_query and not out_query:
@@ -57,35 +85,27 @@ def get_table_schemas(
 
     with closing(hook.get_conn()) as conn:
         with closing(conn.cursor()) as cursor:
-            for query in [in_query, out_query]:
-                if query:
-                    cursor.execute(query)
-                    query_schemas.append(parse_query_result(cursor))
-                else:
-                    query_schemas.append([])
-    return tuple(
-        [
-            [
-                Dataset.from_table_schema(
-                    source=source, table_schema=schema, database_name=db or database
-                )
-                for schema, db in schemas
-            ]
-            for schemas in query_schemas
-        ]
-    )
+            if in_query:
+                cursor.execute(in_query)
+                in_datasets += [x.to_dataset(namespace, database) for x in parse_query_result(cursor)]
+            if out_query:
+                cursor.execute(out_query)
+                out_datasets += [x.to_dataset(namespace, database) for x in parse_query_result(cursor)]
+    return in_datasets, out_datasets
 
 
-def parse_query_result(cursor) -> List[Tuple[DbTableSchema, str]]:
-    schemas: Dict = {}
+def parse_query_result(cursor) -> list[TableSchema]:
+    schemas: dict = {}
+    columns: dict = defaultdict(list)
     for row in cursor.fetchall():
         table_schema_name: str = row[_TABLE_SCHEMA]
-        table_name: DbTableMeta = DbTableMeta(row[_TABLE_NAME])
-        table_column: DbColumn = DbColumn(
+        table_name: str = row[_TABLE_NAME]
+        table_column: SchemaField = SchemaField(
             name=row[_COLUMN_NAME],
             type=row[_UDT_NAME],
-            ordinal_position=row[_ORDINAL_POSITION],
+            description=None,
         )
+        ordinal_position = row[_ORDINAL_POSITION]
         try:
             table_database = row[_TABLE_DATABASE]
         except IndexError:
@@ -93,38 +113,39 @@ def parse_query_result(cursor) -> List[Tuple[DbTableSchema, str]]:
 
         # Attempt to get table schema
         table_key = ".".join(
-            filter(None, [table_database, table_schema_name, table_name.name])
+            filter(None, [table_database, table_schema_name, table_name])
         )
         # table_key: str = f"{table_schema_name}.{table_name}"
-        table_schema: Optional[DbTableSchema]
+        table_schema: DbTableSchema | None
         table_schema, _ = schemas.get(table_key) or (None, None)
 
-        if table_schema:
-            # Add column to existing table schema.
-            schemas[table_key][0].columns.append(table_column)
-        else:
-            # Create new table schema with column.
-            schemas[table_key] = (
-                DbTableSchema(
-                    schema_name=table_schema_name,
-                    table_name=table_name,
-                    columns=[table_column],
-                ),
-                table_database,
-            )
+        schemas[table_key] = TableSchema(
+            table=table_name,
+            schema=table_schema_name,
+            database=table_database,
+            fields=[]
+        )
+        columns[table_key].append((ordinal_position, table_column))
+
+    for schema in schemas.values():
+        table_key = ".".join(
+            filter(None, [schema.database, schema.schema, schema.table])
+        )
+        schema.fields = [
+            x for _, x in sorted(columns[table_key])
+        ]
+
     return list(schemas.values())
 
 
 def create_information_schema_query(
-    columns: List[str],
+    columns: list[str],
     information_schema_table_name: str,
     tables_hierarchy: TablesHierarchy,
     uppercase_names: bool = False,
     allow_trailing_semicolon: bool = True,
 ) -> str:
-    """
-    This function creates query for getting table schemas from information schema.
-    """
+    """This function creates query for getting table schemas from information schema."""
     sqls = []
     for db, schema_mapping in tables_hierarchy.items():
         filter_clauses = create_filter_clauses(schema_mapping, uppercase_names)
@@ -132,11 +153,11 @@ def create_information_schema_query(
         if db:
             source = f"{db.upper() if uppercase_names else db}." f"{source}"
         sqls.append(
-            (
+
                 f"SELECT {', '.join(columns)} "
                 f"FROM {source} "
                 f"WHERE {' OR '.join(filter_clauses)}"
-            )
+
         )
     sql = " UNION ALL ".join(sqls)
 
@@ -147,7 +168,7 @@ def create_information_schema_query(
     return sql
 
 
-def create_filter_clauses(schema_mapping, uppercase_names: bool = False) -> List[str]:
+def create_filter_clauses(schema_mapping, uppercase_names: bool = False) -> list[str]:
     filter_clauses = []
     for schema, tables in schema_mapping.items():
         table_names = ",".join(

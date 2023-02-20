@@ -1,21 +1,22 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
-from typing import List, Optional
 from urllib.parse import urlparse
 
+from openlineage.client.facet import SchemaField, SqlJobFacet
+from openlineage.client.run import Dataset
+from openlineage.common.sql import SqlMeta, parse
+
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
+from airflow.providers.openlineage.plugins.extractors.dbapi_utils import TableSchema
 from airflow.providers.openlineage.plugins.extractors.sql_extractor import SqlExtractor
-from openlineage.client.facet import SqlJobFacet
-from openlineage.common.dataset import Dataset, Source
-from openlineage.common.models import DbColumn, DbTableSchema
-from openlineage.common.sql import DbTableMeta, SqlMeta, parse
 
 
 class AthenaExtractor(BaseExtractor):
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["AthenaOperator", "AWSAthenaOperator"]
 
     def extract(self) -> TaskMetadata:
@@ -24,15 +25,15 @@ class AthenaExtractor(BaseExtractor):
             "sql": SqlJobFacet(query=SqlExtractor._normalize_sql(self.operator.query))
         }
 
-        sql_meta: Optional[SqlMeta] = parse(self.operator.query, "generic", None)
-        inputs: List[Dataset] = list(filter(None, [
+        sql_meta: SqlMeta | None = parse(self.operator.query, "generic", None)
+        inputs: list[Dataset] = list(filter(None, [
             self._get_inout_dataset(self.operator.database, table.name)
             for table in sql_meta.in_tables
         ])) if sql_meta and sql_meta.in_tables else []
 
         # Athena can output query result to a new table with CTAS query.
         # cf. https://docs.aws.amazon.com/athena/latest/ug/ctas.html
-        outputs: List[Dataset] = list(filter(None, [
+        outputs: list[Dataset] = list(filter(None, [
             self._get_inout_dataset(self.operator.database, table.name)
             for table in sql_meta.out_tables
         ])) if sql_meta and sql_meta.out_tables else []
@@ -60,24 +61,23 @@ class AthenaExtractor(BaseExtractor):
         # but we keep it as of now since it may be useful for some purpose.
         output_location = self.operator.output_location
         parsed = urlparse(output_location)
+        scheme = parsed.scheme,
+        authority = parsed.netloc,
+        namespace = f"{scheme}://{authority}"
         outputs.append(Dataset(
+            namespace=namespace,
             name=parsed.path,
-            source=Source(
-                scheme=parsed.scheme,
-                authority=parsed.netloc,
-                connection_url=output_location
-            )
         ))
 
         return TaskMetadata(
             name=task_name,
-            inputs=[ds.to_openlineage_dataset() for ds in inputs],
-            outputs=[ds.to_openlineage_dataset() for ds in outputs],
+            inputs=inputs,
+            outputs=outputs,
             run_facets={},
             job_facets=job_facets,
         )
 
-    def _get_inout_dataset(self, database, table) -> Optional[Dataset]:
+    def _get_inout_dataset(self, database, table) -> Dataset | None:
         # Currently, AthenaOperator and AthenaHook don't have a functionality to specify catalog,
         # and it seems to implicitly assume that the default catalog (AwsDataCatalog) is target.
         CATALOG_NAME = "AwsDataCatalog"
@@ -93,27 +93,18 @@ class AthenaExtractor(BaseExtractor):
                 TableName=table
             )
 
-            table_schema = DbTableSchema(
-                schema_name=database,
-                table_name=DbTableMeta(f"{CATALOG_NAME}.{database}.{table}"),
-                columns=[
-                    DbColumn(name=column["Name"], type=column["Type"], ordinal_position=i)
-                    for i, column in enumerate(table_metadata["TableMetadata"]["Columns"])
-                ]
-            )
-
             scheme = "awsathena"
             authority = f"athena.{client._client_config.region_name}.amazonaws.com"
 
-            return Dataset.from_table_schema(
-                source=Source(
-                    scheme=scheme,
-                    authority=authority,
-                    connection_url=f"{scheme}://{authority}",
-                ),
-                table_schema=table_schema,
-                database_name=CATALOG_NAME
-            )
+            return TableSchema(
+                table=table,
+                schema=database,
+                database=CATALOG_NAME,
+                fields=[
+                    SchemaField(name=column["Name"], type=column["Type"])
+                    for i, column in enumerate(table_metadata["TableMetadata"]["Columns"])
+                ]
+            ).to_dataset(f"{scheme}://{authority}")
         except Exception as e:
             self.log.error(
                 f"Cannot retrieve table metadata from Athena.Client. {e}", exc_info=True

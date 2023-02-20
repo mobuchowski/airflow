@@ -1,13 +1,18 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import inspect
 import os
-from typing import Callable, Dict, List, Optional
+from typing import Callable
+
+from openlineage.client.facet import SourceCodeJobFacet
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
-from airflow.providers.openlineage.plugins.facets import UnknownOperatorAttributeRunFacet, UnknownOperatorInstance
-from openlineage.client.facet import SourceCodeJobFacet
+from airflow.providers.openlineage.plugins.facets import (
+    UnknownOperatorAttributeRunFacet,
+    UnknownOperatorInstance,
+)
 
 
 class PythonExtractor(BaseExtractor):
@@ -16,17 +21,18 @@ class PythonExtractor(BaseExtractor):
     executed source code and putting it into SourceCodeJobFacet. It does not extract
     datasets.
     """
+
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return ["PythonOperator"]
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         collect_source = os.environ.get(
             "OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE", "True"
         ).lower() not in ('true', '1', 't')
 
         source_code = self.get_source_code(self.operator.python_callable)
-        job_facet: Dict = {}
+        job_facet: dict = {}
         if collect_source and source_code:
             job_facet = {
                 "sourceCode": SourceCodeJobFacet(
@@ -55,7 +61,7 @@ class PythonExtractor(BaseExtractor):
             }
         )
 
-    def get_source_code(self, callable: Callable) -> Optional[str]:
+    def get_source_code(self, callable: Callable) -> str | None:
         try:
             return inspect.getsource(callable)
         except TypeError:

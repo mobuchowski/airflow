@@ -2,11 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 import logging
 
-from airflow.providers.openlineage.plugins.version import __version__
 from pkg_resources import parse_version
 
+from airflow.providers.openlineage.plugins.version import __version__
 from airflow.version import version as AIRFLOW_VERSION
 
 __author__ = """OpenLineage"""

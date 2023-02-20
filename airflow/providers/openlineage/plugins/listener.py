@@ -1,12 +1,14 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
-import uuid
 from concurrent.futures import Executor, ThreadPoolExecutor
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Union
 
 import attr
+
+from airflow.listeners import hookimpl
 from airflow.providers.openlineage.plugins.adapter import OpenLineageAdapter
 from airflow.providers.openlineage.plugins.extractors import ExtractorManager
 from airflow.providers.openlineage.plugins.utils import (
@@ -18,8 +20,6 @@ from airflow.providers.openlineage.plugins.utils import (
     get_task_location,
     print_exception,
 )
-
-from airflow.listeners import hookimpl
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -47,7 +47,7 @@ class ActiveRunManager:
     def set_active_run(self, task_instance: "TaskInstance", run_id: str):
         self.run_data[self._pk(task_instance)] = ActiveRun(run_id, task_instance.task)
 
-    def get_active_run(self, task_instance: "TaskInstance") -> Optional[ActiveRun]:
+    def get_active_run(self, task_instance: "TaskInstance") -> ActiveRun | None:
         return self.run_data.get(self._pk(task_instance))
 
     @staticmethod
@@ -58,7 +58,7 @@ class ActiveRunManager:
 class ListenerPlugin:
     def __init__(self):
         self.log = logging.getLogger(__name__)
-        self.executor: Optional[Executor] = None  # type: ignore
+        self.executor: Executor | None = None  # type: ignore
         self.run_data_holder = ActiveRunManager()
         self.extractor_manager = ExtractorManager()
         self.adapter = OpenLineageAdapter()

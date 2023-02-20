@@ -1,7 +1,6 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
-
-from typing import List, Optional
+from __future__ import annotations
 
 from airflow.providers.openlineage.plugins.extractors.base import BaseExtractor, TaskMetadata
 
@@ -20,18 +19,19 @@ class GreatExpectationsExtractorImpl(BaseExtractor):
     Great Expectations extractor extracts validation data from CheckpointResult object and
     parses it via ExpectationsParsers. Results are used to prepare data quality facet.
     """
+
     def __init__(self, operator):
         super().__init__(operator)
         self.result = None
 
     @classmethod
-    def get_operator_classnames(cls) -> List[str]:
+    def get_operator_classnames(cls) -> list[str]:
         return [GreatExpectationsOperator.__name__] if GreatExpectationsOperator else []
 
-    def extract(self) -> Optional[TaskMetadata]:
+    def extract(self) -> TaskMetadata | None:
         return None
 
-    def extract_on_complete(self, task_instance) -> Optional[TaskMetadata]:
+    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
         return None
 
 
@@ -43,5 +43,5 @@ else:
             raise RuntimeError('Great Expectations provider not found')
 
         @classmethod
-        def get_operator_classnames(cls) -> List[str]:
+        def get_operator_classnames(cls) -> list[str]:
             return []

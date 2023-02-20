@@ -1,15 +1,13 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
 import os
 import uuid
-from typing import TYPE_CHECKING, Dict, List, Optional, Type
+from typing import TYPE_CHECKING
 
 import requests.exceptions
-from airflow.providers.openlineage.plugins.extractors import TaskMetadata
-from airflow.providers.openlineage.plugins.utils import DagUtils, redact_with_exclusions
-from airflow.providers.openlineage.plugins.version import __version__ as OPENLINEAGE_AIRFLOW_VERSION
 from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_producer
 from openlineage.client.facet import (
     BaseFacet,
@@ -23,6 +21,10 @@ from openlineage.client.facet import (
     SourceCodeLocationJobFacet,
 )
 from openlineage.client.run import Job, Run, RunEvent, RunState
+
+from airflow.providers.openlineage.plugins.extractors import TaskMetadata
+from airflow.providers.openlineage.plugins.utils import DagUtils, redact_with_exclusions
+from airflow.providers.openlineage.plugins.version import __version__ as OPENLINEAGE_AIRFLOW_VERSION
 
 if TYPE_CHECKING:
     from airflow.models.dagrun import DagRun
@@ -95,14 +97,14 @@ class OpenLineageAdapter:
         job_name: str,
         job_description: str,
         event_time: str,
-        parent_job_name: Optional[str],
-        parent_run_id: Optional[str],
-        code_location: Optional[str],
+        parent_job_name: str | None,
+        parent_run_id: str | None,
+        code_location: str | None,
         nominal_start_time: str,
         nominal_end_time: str,
-        owners: List[str],
-        task: Optional[TaskMetadata],
-        run_facets: Optional[Dict[str, Type[BaseFacet]]] = None,  # Custom run facets
+        owners: list[str],
+        task: TaskMetadata | None,
+        run_facets: dict[str, type[BaseFacet]] | None = None,  # Custom run facets
     ) -> str:
         """
         Emits openlineage event of type START
@@ -166,7 +168,6 @@ class OpenLineageAdapter:
         :param end_time: time of task completion
         :param task: metadata container with information extracted from operator
         """
-
         event = RunEvent(
             eventType=RunState.COMPLETE,
             eventTime=end_time,
@@ -253,12 +254,12 @@ class OpenLineageAdapter:
     @staticmethod
     def _build_run(
         run_id: str,
-        parent_job_name: Optional[str] = None,
-        parent_run_id: Optional[str] = None,
-        job_name: Optional[str] = None,
-        nominal_start_time: Optional[str] = None,
-        nominal_end_time: Optional[str] = None,
-        run_facets: Dict[str, BaseFacet] = None,
+        parent_job_name: str | None = None,
+        parent_run_id: str | None = None,
+        job_name: str | None = None,
+        nominal_start_time: str | None = None,
+        nominal_end_time: str | None = None,
+        run_facets: dict[str, BaseFacet] = None,
     ) -> Run:
         facets = {}
         if nominal_start_time:
@@ -286,10 +287,10 @@ class OpenLineageAdapter:
     @staticmethod
     def _build_job(
         job_name: str,
-        job_description: Optional[str] = None,
-        code_location: Optional[str] = None,
-        owners: List[str] = None,
-        job_facets: Dict[str, BaseFacet] = None,
+        job_description: str | None = None,
+        code_location: str | None = None,
+        owners: list[str] = None,
+        job_facets: dict[str, BaseFacet] = None,
     ):
         facets = {}
 

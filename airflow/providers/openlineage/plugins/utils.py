@@ -1,5 +1,6 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import datetime
 import importlib
@@ -8,21 +9,21 @@ import logging
 import os
 import subprocess
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Type
+from typing import TYPE_CHECKING, Any, Optional
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from uuid import uuid4
 
 import attr
+from openlineage.client.utils import RedactMixin
+from pendulum import from_timestamp
+
+from airflow.models import DAG as AIRFLOW_DAG
 from airflow.providers.openlineage.plugins.facets import (
     AirflowMappedTaskRunFacet,
     AirflowRunArgsRunFacet,
     AirflowRunFacet,
     AirflowVersionRunFacet,
 )
-from openlineage.client.utils import RedactMixin
-from pendulum import from_timestamp
-
-from airflow.models import DAG as AIRFLOW_DAG
 
 if TYPE_CHECKING:
     from airflow.models import DAG, BaseOperator, Connection, DagRun, TaskInstance
@@ -36,7 +37,7 @@ def openlineage_job_name(dag_id: str, task_id: str) -> str:
     return f"{dag_id}.{task_id}"
 
 
-def get_operator_class(task: "BaseOperator") -> Type:
+def get_operator_class(task: "BaseOperator") -> type:
     if task.__class__.__name__ in ("DecoratedMappedOperator", "MappedOperator"):
         return task.operator_class
     return task.__class__
@@ -76,10 +77,10 @@ class JobIdMapping:
 
     @staticmethod
     def make_key(job_name, run_id):
-        return "openlineage_id_mapping-{}-{}".format(job_name, run_id)
+        return f"openlineage_id_mapping-{job_name}-{run_id}"
 
 
-def to_json_encodable(task: "BaseOperator") -> Dict[str, object]:
+def to_json_encodable(task: "BaseOperator") -> dict[str, object]:
     def _task_encoder(obj):
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
@@ -107,7 +108,7 @@ class SafeStrDict(dict):
         return str(dict(castable))
 
 
-def url_to_https(url) -> Optional[str]:
+def url_to_https(url) -> str | None:
     # Ensure URL exists
     if not url:
         return None
@@ -128,7 +129,7 @@ def url_to_https(url) -> Optional[str]:
     return base_url
 
 
-def get_location(file_path) -> Optional[str]:
+def get_location(file_path) -> str | None:
     # Ensure file path exists
     if not file_path:
         return None
@@ -178,7 +179,6 @@ def get_connection_uri(conn):
     the connection URI via AIRFLOW_CONN_<conn_id>, else fallback on querying
     the Airflow's connection table.
     """
-
     conn_uri = conn.get_uri()
     parsed = urlparse(conn_uri)
 
@@ -239,7 +239,7 @@ def get_job_name(task):
 
 def get_custom_facets(
     dagrun, task, is_external_trigger: bool, task_instance: "TaskInstance" = None
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     custom_facets = {
         "airflow_runArgs": AirflowRunArgsRunFacet(is_external_trigger),
         "airflow_version": AirflowVersionRunFacet.from_dagrun_and_task(dagrun, task),
@@ -257,10 +257,10 @@ def get_custom_facets(
 
 
 class InfoJsonEncodable(dict):
-    renames: Dict[str, str] = dict()
-    casts: Dict[str, Any] = dict()
-    includes: List[str] = []
-    excludes: List[str] = []
+    renames: dict[str, str] = dict()
+    casts: dict[str, Any] = dict()
+    includes: list[str] = []
+    excludes: list[str] = []
 
     def __init__(self, obj):
         self.obj = obj
@@ -488,7 +488,7 @@ def redact_with_exclusions(source: Any):
     sm = copy.deepcopy(_secrets_masker())
     MAX_RECURSION_DEPTH = 20
 
-    def _redact(item, name: Optional[str], depth: int):
+    def _redact(item, name: str | None, depth: int):
         if depth > MAX_RECURSION_DEPTH:
             return item
         try:
