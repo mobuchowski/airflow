@@ -35,9 +35,9 @@ integrations:
     external-doc-url: https://hive.apache.org/
     how-to-guide:
       - /docs/apache-airflow-providers-openlineage/openlineage.rst
-    logo: /integration-logos/openlineage/openlineage.png
+    logo: /integration-logos/openlineage/openlineage.svg
     tags: [apache]
 
 plugins:
   - name: openlineage
-    plugin-class: airflow.providers.openlineage.plugins.openlineage.OpenLineageBuildinPlugin
+    plugin-class: airflow.providers.openlineage.plugins.plugin.OpenLineageProviderPlugin
