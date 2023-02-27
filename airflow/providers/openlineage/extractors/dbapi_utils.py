@@ -8,6 +8,7 @@ from contextlib import closing
 from typing import TYPE_CHECKING, Dict, Iterator, List
 
 import attr
+
 from openlineage.client.facet import SchemaDatasetFacet, SchemaField
 from openlineage.client.run import Dataset
 from openlineage.common.models import DbTableSchema
@@ -43,29 +44,27 @@ class TableSchema:
     def to_dataset(self, namespace: str, database: str | None = None) -> Dataset:
         # Prefix the table name with database and schema name using
         # the format: {database_name}.{table_schema}.{table_name}.
-        name = ".".join(filter(lambda x: x is not None, [self.database if self.database else database, self.schema, self.table]))
+        name = ".".join(
+            filter(
+                lambda x: x is not None,
+                [self.database if self.database else database, self.schema, self.table],
+            )
+        )
         return Dataset(
             namespace=namespace,
             name=name,
-            facets={
-                "schema": SchemaDatasetFacet(
-                    fields=self.fields
-                )
-            } if len(self.fields) is not None else {}
+            facets={"schema": SchemaDatasetFacet(fields=self.fields)} if len(self.fields) is not None else {},
         )
 
 
-def execute_query_on_hook(
-    hook: "BaseHook",
-    query: str
-) -> Iterator[tuple]:
+def execute_query_on_hook(hook: BaseHook, query: str) -> Iterator[tuple]:
     with closing(hook.get_conn()) as conn:
         with closing(conn.cursor()) as cursor:
             return cursor.execute(query).fetchall()
 
 
 def get_table_schemas(
-    hook: "BaseHook",
+    hook: BaseHook,
     namespace: str,
     database: str,
     in_query: str | None,
@@ -112,28 +111,19 @@ def parse_query_result(cursor) -> list[TableSchema]:
             table_database = None
 
         # Attempt to get table schema
-        table_key = ".".join(
-            filter(None, [table_database, table_schema_name, table_name])
-        )
+        table_key = ".".join(filter(None, [table_database, table_schema_name, table_name]))
         # table_key: str = f"{table_schema_name}.{table_name}"
         table_schema: DbTableSchema | None
         table_schema, _ = schemas.get(table_key) or (None, None)
 
         schemas[table_key] = TableSchema(
-            table=table_name,
-            schema=table_schema_name,
-            database=table_database,
-            fields=[]
+            table=table_name, schema=table_schema_name, database=table_database, fields=[]
         )
         columns[table_key].append((ordinal_position, table_column))
 
     for schema in schemas.values():
-        table_key = ".".join(
-            filter(None, [schema.database, schema.schema, schema.table])
-        )
-        schema.fields = [
-            x for _, x in sorted(columns[table_key])
-        ]
+        table_key = ".".join(filter(None, [schema.database, schema.schema, schema.table]))
+        schema.fields = [x for _, x in sorted(columns[table_key])]
 
     return list(schemas.values())
 
@@ -152,13 +142,7 @@ def create_information_schema_query(
         source = information_schema_table_name
         if db:
             source = f"{db.upper() if uppercase_names else db}." f"{source}"
-        sqls.append(
-
-                f"SELECT {', '.join(columns)} "
-                f"FROM {source} "
-                f"WHERE {' OR '.join(filter_clauses)}"
-
-        )
+        sqls.append(f"SELECT {', '.join(columns)} " f"FROM {source} " f"WHERE {' OR '.join(filter_clauses)}")
     sql = " UNION ALL ".join(sqls)
 
     # For some databases such as Trino, trailing semicolon can cause a syntax error.

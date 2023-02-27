@@ -8,6 +8,10 @@ import uuid
 from typing import TYPE_CHECKING
 
 import requests.exceptions
+
+from airflow.providers.openlineage import version as OPENLINEAGE_AIRFLOW_VERSION
+from airflow.providers.openlineage.extractors.base import OperatorLineage
+from airflow.providers.openlineage.utils import DagUtils, redact_with_exclusions
 from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_producer
 from openlineage.client.facet import (
     BaseFacet,
@@ -21,10 +25,6 @@ from openlineage.client.facet import (
     SourceCodeLocationJobFacet,
 )
 from openlineage.client.run import Job, Run, RunEvent, RunState
-
-from airflow.providers.openlineage.plugins.extractors import TaskMetadata
-from airflow.providers.openlineage.plugins.utils import DagUtils, redact_with_exclusions
-from airflow.providers.openlineage.plugins.version import __version__ as OPENLINEAGE_AIRFLOW_VERSION
 
 if TYPE_CHECKING:
     from airflow.models.dagrun import DagRun
@@ -103,7 +103,7 @@ class OpenLineageAdapter:
         nominal_start_time: str,
         nominal_end_time: str,
         owners: list[str],
-        task: TaskMetadata | None,
+        task: OperatorLineage | None,
         run_facets: dict[str, type[BaseFacet]] | None = None,  # Custom run facets
     ) -> str:
         """
@@ -159,7 +159,7 @@ class OpenLineageAdapter:
         return event.run.runId
 
     def complete_task(
-        self, run_id: str, job_name: str, end_time: str, task: TaskMetadata
+        self, run_id: str, job_name: str, end_time: str, task: OperatorLineage
     ):
         """
         Emits openlineage event of type COMPLETE
@@ -179,7 +179,7 @@ class OpenLineageAdapter:
         )
         self.emit(event)
 
-    def fail_task(self, run_id: str, job_name: str, end_time: str, task: TaskMetadata):
+    def fail_task(self, run_id: str, job_name: str, end_time: str, task: OperatorLineage):
         """
         Emits openlineage event of type FAIL
         :param run_id: globally unique identifier of task in dag run
@@ -200,7 +200,7 @@ class OpenLineageAdapter:
 
     def dag_started(
         self,
-        dag_run: "DagRun",
+        dag_run: DagRun,
         msg: str,
         nominal_start_time: str,
         nominal_end_time: str,
@@ -220,7 +220,7 @@ class OpenLineageAdapter:
         )
         self.emit(event)
 
-    def dag_success(self, dag_run: "DagRun", msg: str):
+    def dag_success(self, dag_run: DagRun, msg: str):
         event = RunEvent(
             eventType=RunState.COMPLETE,
             eventTime=DagUtils.to_iso_8601(dag_run.end_date),
@@ -232,7 +232,7 @@ class OpenLineageAdapter:
         )
         self.emit(event)
 
-    def dag_failed(self, dag_run: "DagRun", msg: str):
+    def dag_failed(self, dag_run: DagRun, msg: str):
         event = RunEvent(
             eventType=RunState.FAIL,
             eventTime=DagUtils.to_iso_8601(dag_run.end_date),

@@ -7,23 +7,16 @@ from abc import ABC, abstractmethod
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import attr
+
+from airflow.utils.log.logging_mixin import LoggingMixin
 from openlineage.client.facet import BaseFacet
 from openlineage.client.run import Dataset
-
-from airflow.providers.openlineage.plugins.utils import LoggingMixin, get_job_name
 
 
 @attr.s
 class OperatorLineage:
-    inputs: list[Dataset] = attr.ib(factory=list)
-    outputs: list[Dataset] = attr.ib(factory=list)
-    run_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
-    job_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
+    """Structure returned from lineage extraction."""
 
-
-@attr.s
-class TaskMetadata:
-    name: str = attr.ib()  # deprecated
     inputs: list[Dataset] = attr.ib(factory=list)
     outputs: list[Dataset] = attr.ib(factory=list)
     run_facets: dict[str, BaseFacet] = attr.ib(factory=dict)
@@ -31,6 +24,11 @@ class TaskMetadata:
 
 
 class BaseExtractor(ABC, LoggingMixin):
+    """
+    Abstract base extractor class.
+
+    This is used mostly to maintain support for custom extractors.
+    """
 
     _whitelist_query_params: list[str] = []
 
@@ -59,10 +57,10 @@ class BaseExtractor(ABC, LoggingMixin):
         assert self.operator.__class__.__name__ in self.get_operator_classnames()
 
     @abstractmethod
-    def extract(self) -> TaskMetadata | None:
+    def extract(self) -> OperatorLineage | None:
         pass
 
-    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
+    def extract_on_complete(self, task_instance) -> OperatorLineage | None:
         return self.extract()
 
     @classmethod
@@ -90,6 +88,8 @@ class BaseExtractor(ABC, LoggingMixin):
 
 
 class DefaultExtractor(BaseExtractor):
+    """Extractor that uses `get_openlineage_facets_on_start/complete/failure` methods."""
+
     @classmethod
     def get_operator_classnames(cls) -> list[str]:
         """
@@ -98,7 +98,7 @@ class DefaultExtractor(BaseExtractor):
         """
         return []
 
-    def extract(self) -> TaskMetadata | None:
+    def extract(self) -> OperatorLineage | None:
         try:
             return self._get_openlineage_facets(
                 self.operator.get_openlineage_facets_on_start
@@ -106,7 +106,7 @@ class DefaultExtractor(BaseExtractor):
         except AttributeError:
             return None
 
-    def extract_on_complete(self, task_instance) -> TaskMetadata | None:
+    def extract_on_complete(self, task_instance) -> OperatorLineage | None:
         on_complete = getattr(self.operator, 'get_openlineage_facets_on_complete', None)
         if on_complete and callable(on_complete):
             return self._get_openlineage_facets(
@@ -116,10 +116,9 @@ class DefaultExtractor(BaseExtractor):
 
     def _get_openlineage_facets(
         self, get_facets_method, *args
-    ) -> TaskMetadata | None:
+    ) -> OperatorLineage | None:
         facets: OperatorLineage = get_facets_method(*args)
-        return TaskMetadata(
-            name=get_job_name(task=self.operator),
+        return OperatorLineage(
             inputs=facets.inputs,
             outputs=facets.outputs,
             run_facets=facets.run_facets,

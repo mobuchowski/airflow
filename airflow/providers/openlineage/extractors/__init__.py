@@ -15,3 +15,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+from __future__ import annotations
+
+# from airflow.providers.openlineage.extractors import Extractors
+from airflow.providers.openlineage.extractors.base import BaseExtractor, OperatorLineage
+from airflow.providers.openlineage.extractors.extractors import Extractors
+from airflow.providers.openlineage.extractors.manager import ExtractorManager
+
+__all__ = [Extractors, BaseExtractor, OperatorLineage, ExtractorManager]

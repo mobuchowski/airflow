@@ -15,13 +15,17 @@ def _is_disabled():
 if _is_disabled():  # type: ignore
     # Provide empty plugin when OL is disabled
     class OpenLineageProviderPlugin(AirflowPlugin):
+        """OpenLineage plugin that provides macros only"""
+
         name = "OpenLineageProviderPlugin"
         macros = [lineage_run_id, lineage_parent_id]
 else:
-    from airflow.providers.openlineage.plugins.listener import ListenerPlugin
+    from airflow.providers.openlineage.plugins.listener import OpenLineageListener
 
     # Provide entrypoint airflow plugin that registers listener module
     class OpenLineageProviderPlugin(AirflowPlugin):     # type: ignore
+        """OpenLineage plugin that provides listener module and macros"""
+
         name = "OpenLineageProviderPlugin"
-        listeners = [ListenerPlugin]
+        listeners = [OpenLineageListener]
         macros = [lineage_run_id, lineage_parent_id]

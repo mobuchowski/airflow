@@ -2,23 +2,21 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-import logging
-
-from airflow.providers.openlineage.plugins.extractors import BaseExtractor, Extractors, TaskMetadata
+from airflow.providers.openlineage.extractors import BaseExtractor, Extractors, OperatorLineage
 from airflow.providers.openlineage.plugins.facets import (
     UnknownOperatorAttributeRunFacet,
     UnknownOperatorInstance,
 )
-from airflow.providers.openlineage.plugins.utils import get_job_name, get_operator_class
+from airflow.providers.openlineage.utils import get_job_name, get_operator_class
+from airflow.utils.log.logging_mixin import LoggingMixin
 
 
-class ExtractorManager:
+class ExtractorManager(LoggingMixin):
     """Class abstracting management of custom extractors."""
 
     def __init__(self):
         self.extractors = {}
         self.task_to_extractor = Extractors()
-        self.log = logging.getLogger(f"{self.__class__.__module__}.{self.__class__.__name__}")
 
     def add_extractor(self, operator, extractor: type[BaseExtractor]):
         self.task_to_extractor.add_extractor(operator, extractor)
@@ -29,7 +27,7 @@ class ExtractorManager:
         task,
         complete: bool = False,
         task_instance=None
-    ) -> TaskMetadata:
+    ) -> OperatorLineage:
         extractor = self._get_extractor(task)
         task_info = f'task_type={get_operator_class(task).__name__} ' \
             f'airflow_dag_id={task.dag_id} ' \
@@ -67,8 +65,7 @@ class ExtractorManager:
                 f'Unable to find an extractor. {task_info}')
 
             # Only include the unkonwnSourceAttribute facet if there is no extractor
-            task_metadata = TaskMetadata(
-                name=get_job_name(task),
+            task_metadata = OperatorLineage(
                 run_facets={
                     "unknownSourceAttribute": UnknownOperatorAttributeRunFacet(
                         unknownItems=[
@@ -87,7 +84,7 @@ class ExtractorManager:
             self.extract_inlets_and_outlets(task_metadata, inlets, outlets)
             return task_metadata
 
-        return TaskMetadata(name=get_job_name(task))
+        return OperatorLineage(name=get_job_name(task))
 
     def _get_extractor(self, task) -> BaseExtractor | None:
         self.task_to_extractor.instantiate_abstract_extractors(task)
@@ -102,11 +99,11 @@ class ExtractorManager:
 
     def extract_inlets_and_outlets(
             self,
-            task_metadata: TaskMetadata,
+            task_metadata: OperatorLineage,
             inlets: list,
             outlets: list,
     ):
-        from airflow.providers.openlineage.plugins.extractors.converters import convert_to_dataset
+        from airflow.providers.openlineage.utils.converters import convert_to_dataset
 
         self.log.debug("Manually extracting lineage metadata from inlets and outlets")
         for i in inlets:

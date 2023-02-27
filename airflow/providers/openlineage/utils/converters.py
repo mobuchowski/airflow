@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-from openlineage.client.run import Dataset
-
 from airflow.lineage.entities import Table
+from openlineage.client.run import Dataset
 
 
 def convert_to_dataset(obj):

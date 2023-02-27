@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import logging
 from concurrent.futures import Executor, ThreadPoolExecutor
-from typing import TYPE_CHECKING, Union
-
-import attr
+from typing import TYPE_CHECKING
 
 from airflow.listeners import hookimpl
+from airflow.providers.openlineage.extractors import ExtractorManager
 from airflow.providers.openlineage.plugins.adapter import OpenLineageAdapter
-from airflow.providers.openlineage.plugins.extractors import ExtractorManager
-from airflow.providers.openlineage.plugins.utils import (
+from airflow.providers.openlineage.utils import (
     DagUtils,
     get_airflow_run_facet,
     get_custom_facets,
@@ -24,42 +22,18 @@ from airflow.providers.openlineage.plugins.utils import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-    from airflow.models import BaseOperator, DagRun, MappedOperator, TaskInstance
+    from airflow.models import DagRun, TaskInstance
 
 
-@attr.s(frozen=True)
-class ActiveRun:
-    run_id: str = attr.ib()
-    task: Union["BaseOperator", "MappedOperator"] = attr.ib()
-
-
-class ActiveRunManager:
-    """Class that stores run data - run_id and task in-memory. This is needed because Airflow
-    does not always pass all runtime info to on_task_instance_success and
-    on_task_instance_failed that is needed to emit events. This is not a big problem since
-    we're only running on worker - in separate process that is always spawned (or forked) on
-    execution, just like old PHP runtime model.
+class OpenLineageListener:
+    """
+    OpenLineage listener
+    Sends events on task instance and dag run starts, completes and failures.
     """
 
     def __init__(self):
-        self.run_data = {}
-
-    def set_active_run(self, task_instance: "TaskInstance", run_id: str):
-        self.run_data[self._pk(task_instance)] = ActiveRun(run_id, task_instance.task)
-
-    def get_active_run(self, task_instance: "TaskInstance") -> ActiveRun | None:
-        return self.run_data.get(self._pk(task_instance))
-
-    @staticmethod
-    def _pk(ti: "TaskInstance"):
-        return ti.dag_id + ti.task_id + ti.run_id
-
-
-class ListenerPlugin:
-    def __init__(self):
         self.log = logging.getLogger(__name__)
         self.executor: Executor | None = None  # type: ignore
-        self.run_data_holder = ActiveRunManager()
         self.extractor_manager = ExtractorManager()
         self.adapter = OpenLineageAdapter()
 
@@ -67,8 +41,8 @@ class ListenerPlugin:
     def on_task_instance_running(
         self,
         previous_state,  # This will always be QUEUED
-        task_instance: "TaskInstance",
-        session: "Session"
+        task_instance: TaskInstance,
+        session: Session
     ):
         if not hasattr(task_instance, 'task'):
             self.log.warning(
@@ -120,7 +94,7 @@ class ListenerPlugin:
         self.executor.submit(on_running)
 
     @hookimpl
-    def on_task_instance_success(self, previous_state, task_instance: "TaskInstance", session):
+    def on_task_instance_success(self, previous_state, task_instance: TaskInstance, session):
         self.log.debug("OpenLineage listener got notification about task instance success")
         run_data = self.run_data_holder.get_active_run(task_instance)
 
@@ -142,7 +116,7 @@ class ListenerPlugin:
         self.executor.submit(on_success)
 
     @hookimpl
-    def on_task_instance_failed(self, previous_state, task_instance: "TaskInstance", session):
+    def on_task_instance_failed(self, previous_state, task_instance: TaskInstance, session):
         self.log.debug("OpenLineage listener got notification about task instance failure")
         run_data = self.run_data_holder.get_active_run(task_instance)
 
@@ -175,7 +149,7 @@ class ListenerPlugin:
         self.executor.shutdown(wait=True)
 
     @hookimpl
-    def on_dag_run_running(self, dag_run: "DagRun", msg: str):
+    def on_dag_run_running(self, dag_run: DagRun, msg: str):
         if not self.executor:
             self.log.error("Executor have not started before `on_dag_run_running`")
             return
@@ -189,14 +163,14 @@ class ListenerPlugin:
         )
 
     @hookimpl
-    def on_dag_run_success(self, dag_run: "DagRun", msg: str):
+    def on_dag_run_success(self, dag_run: DagRun, msg: str):
         if not self.executor:
             self.log.error("Executor have not started before `on_dag_run_success`")
             return
         self.executor.submit(self.adapter.dag_success, dag_run=dag_run, msg=msg)
 
     @hookimpl
-    def on_dag_run_failed(self, dag_run: "DagRun", msg: str):
+    def on_dag_run_failed(self, dag_run: DagRun, msg: str):
         if not self.executor:
             self.log.error("Executor have not started before `on_dag_run_failed`")
             return

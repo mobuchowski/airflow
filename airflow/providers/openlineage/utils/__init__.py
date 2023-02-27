@@ -1,5 +1,21 @@
-# Copyright 2018-2023 contributors to the OpenLineage project
-# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from __future__ import annotations
 
 import datetime
@@ -9,12 +25,10 @@ import logging
 import os
 import subprocess
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
-from uuid import uuid4
 
 import attr
-from openlineage.client.utils import RedactMixin
 from pendulum import from_timestamp
 
 from airflow.models import DAG as AIRFLOW_DAG
@@ -24,6 +38,9 @@ from airflow.providers.openlineage.plugins.facets import (
     AirflowRunFacet,
     AirflowVersionRunFacet,
 )
+
+# TODO: move this maybe to Airflow's logic?
+from openlineage.client.utils import RedactMixin
 
 if TYPE_CHECKING:
     from airflow.models import DAG, BaseOperator, Connection, DagRun, TaskInstance
@@ -37,50 +54,13 @@ def openlineage_job_name(dag_id: str, task_id: str) -> str:
     return f"{dag_id}.{task_id}"
 
 
-def get_operator_class(task: "BaseOperator") -> type:
+def get_operator_class(task: BaseOperator) -> type:
     if task.__class__.__name__ in ("DecoratedMappedOperator", "MappedOperator"):
         return task.operator_class
     return task.__class__
 
 
-class JobIdMapping:
-    # job_name here is OL job name - aka combination of dag_id and task_id
-
-    @staticmethod
-    def set(job_name: str, dag_run_id: str, task_run_id: str):
-        from airflow.models import Variable
-
-        Variable.set(
-            JobIdMapping.make_key(job_name, dag_run_id), json.dumps(task_run_id)
-        )
-
-    @staticmethod
-    def pop(job_name, dag_run_id, session):
-        return JobIdMapping.get(job_name, dag_run_id, session, delete=True)
-
-    @staticmethod
-    def get(job_name, dag_run_id, session, delete=False):
-        key = JobIdMapping.make_key(job_name, dag_run_id)
-        if session:
-            from airflow.models import Variable
-
-            q = session.query(Variable).filter(Variable.key == key)
-            if not q.first():
-                return None
-            else:
-                val = q.first().val
-                if delete:
-                    q.delete(synchronize_session=False)
-                if val:
-                    return json.loads(val)
-                return None
-
-    @staticmethod
-    def make_key(job_name, run_id):
-        return f"openlineage_id_mapping-{job_name}-{run_id}"
-
-
-def to_json_encodable(task: "BaseOperator") -> dict[str, object]:
+def to_json_encodable(task: BaseOperator) -> dict[str, object]:
     def _task_encoder(obj):
         if isinstance(obj, datetime.datetime):
             return obj.isoformat()
@@ -94,18 +74,6 @@ def to_json_encodable(task: "BaseOperator") -> dict[str, object]:
             return str(obj)
 
     return json.loads(json.dumps(task.__dict__, default=_task_encoder))
-
-
-class SafeStrDict(dict):
-    def __str__(self):
-        castable = list()
-        for key, val in self.items():
-            try:
-                str(key), str(val)
-                castable.append((key, val))
-            except (TypeError, NotImplementedError):
-                continue
-        return str(dict(castable))
 
 
 def url_to_https(url) -> str | None:
@@ -224,7 +192,7 @@ def get_normalized_postgres_connection_uri(conn):
     return uri
 
 
-def get_connection(conn_id) -> "Optional[Connection]":
+def get_connection(conn_id) -> Connection | None:
     from airflow.hooks.base import BaseHook
 
     try:
@@ -238,7 +206,7 @@ def get_job_name(task):
 
 
 def get_custom_facets(
-    dagrun, task, is_external_trigger: bool, task_instance: "TaskInstance" = None
+    dagrun, task, is_external_trigger: bool, task_instance: TaskInstance = None
 ) -> dict[str, Any]:
     custom_facets = {
         "airflow_runArgs": AirflowRunArgsRunFacet(is_external_trigger),
@@ -257,6 +225,21 @@ def get_custom_facets(
 
 
 class InfoJsonEncodable(dict):
+    """
+    Airflow objects might not be json-encodable overall.
+
+    The class provides additional attributes to control
+    what and how is encoded:
+    * renames: a dictionary of attribute name changes
+    * casts: a dictionary consisting of attribute names
+             and corresponding methods that should change
+             object value
+    * includes: list of attributes to be included in encoding
+    * excludes: list of attributes to be excluded from encoding
+
+    Don't use both includes and excludes.
+    """
+
     renames: dict[str, str] = dict()
     casts: dict[str, Any] = dict()
     includes: list[str] = []
@@ -318,6 +301,8 @@ class InfoJsonEncodable(dict):
 
 
 class DagInfo(InfoJsonEncodable):
+    """Defines encoding DAG object to JSON."""
+
     includes = ["dag_id", "schedule_interval", "tags", "start_date"]
     casts = {
         "timetable": lambda dag: dag.timetable.serialize()
@@ -328,6 +313,8 @@ class DagInfo(InfoJsonEncodable):
 
 
 class DagRunInfo(InfoJsonEncodable):
+    """Defines encoding DagRun object to JSON."""
+
     includes = [
         "conf",
         "dag_id",
@@ -341,6 +328,8 @@ class DagRunInfo(InfoJsonEncodable):
 
 
 class TaskInstanceInfo(InfoJsonEncodable):
+    """Defines encoding TaskInstance object to JSON."""
+
     includes = ["duration", "try_number", "pool"]
     casts = {
         "map_index": lambda ti: ti.map_index
@@ -350,6 +339,8 @@ class TaskInstanceInfo(InfoJsonEncodable):
 
 
 class TaskInfo(InfoJsonEncodable):
+    """Defines encoding BaseOperator/AbstractOperator object to JSON."""
+
     renames = {
         "_BaseOperator__init_kwargs": "args",
         "_BaseOperator__from_mapped": "mapped",
@@ -378,6 +369,8 @@ class TaskInfo(InfoJsonEncodable):
 
 
 class TaskGroupInfo(InfoJsonEncodable):
+    """Defines encoding TaskGroup object to JSON."""
+
     renames = {
         "_group_id": "group_id",
     }
@@ -392,10 +385,10 @@ class TaskGroupInfo(InfoJsonEncodable):
 
 
 def get_airflow_run_facet(
-    dag_run: "DagRun",
-    dag: "DAG",
-    task_instance: "TaskInstance",
-    task: "BaseOperator",
+    dag_run: DagRun,
+    dag: DAG,
+    task_instance: TaskInstance,
+    task: BaseOperator,
     task_uuid: str,
 ):
     return {
@@ -411,11 +404,7 @@ def get_airflow_run_facet(
     }
 
 
-def new_lineage_run_id(dag_run_id: str, task_id: str) -> str:
-    return str(uuid4())
-
-
-def get_dagrun_start_end(dagrun: "DagRun", dag: "DAG"):
+def get_dagrun_start_end(dagrun: DagRun, dag: DAG):
     try:
         return dagrun.data_interval_start, dagrun.data_interval_end
     except AttributeError:
@@ -427,6 +416,8 @@ def get_dagrun_start_end(dagrun: "DagRun", dag: "DAG"):
 
 
 class DagUtils:
+    """Helper class to control some of te DAG attributes."""
+
     def get_execution_date(**kwargs):
         return kwargs.get("execution_date")
 
@@ -552,27 +543,6 @@ def _is_name_redactable(name, redacted):
     if not issubclass(redacted.__class__, RedactMixin):
         return not name.startswith("_")
     return name not in redacted.skip_redact
-
-
-class LoggingMixin:
-
-    _log: Optional["logging.Logger"] = None
-
-    @property
-    def log(self) -> logging.Logger:
-        """Returns a logger."""
-        if self._log is None:
-            self._log = logging.getLogger(self._get_logger_name())
-        return self._log
-
-    def _get_logger_name(self):
-        if self.__class__.__module__.startswith("airflow.providers.openlineage.plugins.extractors"):
-            return self.__class__.__module__ + "." + self.__class__.__name__
-        else:
-            return (
-                "airflow.providers.openlineage.plugins.extractors."
-                f"{self.__class__.__module__}.{self.__class__.__name__}"
-            )
 
 
 def print_exception(f):
