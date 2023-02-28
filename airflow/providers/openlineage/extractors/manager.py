@@ -84,7 +84,7 @@ class ExtractorManager(LoggingMixin):
             self.extract_inlets_and_outlets(task_metadata, inlets, outlets)
             return task_metadata
 
-        return OperatorLineage(name=get_job_name(task))
+        return OperatorLineage()
 
     def _get_extractor(self, task) -> BaseExtractor | None:
         self.task_to_extractor.instantiate_abstract_extractors(task)

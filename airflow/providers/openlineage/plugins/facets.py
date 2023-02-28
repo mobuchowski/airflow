@@ -19,7 +19,6 @@ class AirflowVersionRunFacet(BaseFacet):
     airflowVersion: str = attr.ib()
     openlineageAirflowVersion: str = attr.ib()
 
-
     _additional_skip_redact: list[str] = [
         "operator",
         "airflowVersion",

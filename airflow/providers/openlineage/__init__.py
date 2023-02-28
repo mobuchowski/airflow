@@ -31,6 +31,9 @@ except metadata.PackageNotFoundError:
 
     log = logging.getLogger(__name__)
     log.warning("Package metadata could not be found. Overriding it with version found in setup.py")
-    from setup import version
+    # TODO: What should be a proper fallback?
+    # If hardcoded version from provider version
+    # there's no point to use metadata above
+    version = "1.0.0.dev"
 
 del metadata

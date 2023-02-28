@@ -54,7 +54,7 @@ def openlineage_job_name(dag_id: str, task_id: str) -> str:
     return f"{dag_id}.{task_id}"
 
 
-def get_operator_class(task: BaseOperator) -> type:
+def get_operator_class(task: "BaseOperator") -> type:
     if task.__class__.__name__ in ("DecoratedMappedOperator", "MappedOperator"):
         return task.operator_class
     return task.__class__
@@ -206,7 +206,7 @@ def get_job_name(task):
 
 
 def get_custom_facets(
-    dagrun, task, is_external_trigger: bool, task_instance: TaskInstance = None
+    dagrun, task, is_external_trigger: bool, task_instance: "TaskInstance" = None
 ) -> dict[str, Any]:
     custom_facets = {
         "airflow_runArgs": AirflowRunArgsRunFacet(is_external_trigger),

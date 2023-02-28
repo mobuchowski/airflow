@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 import requests.exceptions
 
 from airflow.providers.openlineage import version as OPENLINEAGE_AIRFLOW_VERSION
-from airflow.providers.openlineage.extractors.base import OperatorLineage
+from airflow.providers.openlineage.extractors import OperatorLineage
 from airflow.providers.openlineage.utils import DagUtils, redact_with_exclusions
 from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_producer
 from openlineage.client.facet import (
@@ -76,7 +76,8 @@ class OpenLineageAdapter:
             uuid.uuid3(uuid.NAMESPACE_URL, f"{_DAG_NAMESPACE}.{dag_id}.{dag_run_id}")
         )
 
-    def build_task_instance_run_id(self, task_id, execution_date, try_number):
+    @staticmethod
+    def build_task_instance_run_id(task_id, execution_date, try_number):
         return str(
             uuid.uuid3(
                 uuid.NAMESPACE_URL,

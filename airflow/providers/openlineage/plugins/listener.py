@@ -66,7 +66,7 @@ class OpenLineageListener:
                 task.task_id, task_instance.execution_date, task_instance.try_number
             )
 
-            task_metadata = self.extractor_manager.extract_metadata(dagrun, self.task)
+            task_metadata = self.extractor_manager.extract_metadata(dagrun, task)
 
             start, end = get_dagrun_start_end(dagrun=dagrun, dag=dag)
 
@@ -96,10 +96,13 @@ class OpenLineageListener:
     @hookimpl
     def on_task_instance_success(self, previous_state, task_instance: TaskInstance, session):
         self.log.debug("OpenLineage listener got notification about task instance success")
-        run_data = self.run_data_holder.get_active_run(task_instance)
 
         dagrun = task_instance.dag_run
         task = task_instance.task
+
+        task_uuid = OpenLineageAdapter.build_task_instance_run_id(
+            task.task_id, task_instance.execution_date, task_instance.try_number - 1
+        )
 
         @print_exception
         def on_success():
@@ -107,7 +110,7 @@ class OpenLineageListener:
                 dagrun, task, complete=True, task_instance=task_instance
             )
             self.adapter.complete_task(
-                run_id=run_data.run_id,
+                run_id=task_uuid,
                 job_name=get_job_name(task),
                 end_time=DagUtils.to_iso_8601(task_instance.end_date),
                 task=task_metadata,
@@ -118,10 +121,13 @@ class OpenLineageListener:
     @hookimpl
     def on_task_instance_failed(self, previous_state, task_instance: TaskInstance, session):
         self.log.debug("OpenLineage listener got notification about task instance failure")
-        run_data = self.run_data_holder.get_active_run(task_instance)
 
         dagrun = task_instance.dag_run
-        task = run_data.task if run_data else None
+        task = task_instance.task
+
+        task_uuid = OpenLineageAdapter.build_task_instance_run_id(
+            task.task_id, task_instance.execution_date, task_instance.try_number - 1
+        )
 
         @print_exception
         def on_failure():
@@ -130,7 +136,7 @@ class OpenLineageListener:
             )
 
             self.adapter.fail_task(
-                run_id=run_data.run_id,
+                run_id=task_uuid,
                 job_name=get_job_name(task),
                 end_time=DagUtils.to_iso_8601(task_instance.end_date),
                 task=task_metadata,

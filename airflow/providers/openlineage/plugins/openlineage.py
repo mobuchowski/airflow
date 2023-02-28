@@ -27,5 +27,5 @@ else:
         """OpenLineage plugin that provides listener module and macros"""
 
         name = "OpenLineageProviderPlugin"
-        listeners = [OpenLineageListener]
+        listeners = [OpenLineageListener()]
         macros = [lineage_run_id, lineage_parent_id]
