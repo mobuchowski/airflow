@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 from __future__ import annotations
 
-import logging
 import os
 import uuid
 from typing import TYPE_CHECKING
@@ -12,7 +11,8 @@ import requests.exceptions
 from airflow.providers.openlineage import version as OPENLINEAGE_AIRFLOW_VERSION
 from airflow.providers.openlineage.extractors import OperatorLineage
 from airflow.providers.openlineage.utils import DagUtils, redact_with_exclusions
-from openlineage.client import OpenLineageClient, OpenLineageClientOptions, set_producer
+from airflow.utils.log.logging_mixin import LoggingMixin
+from openlineage.client import OpenLineageClient, set_producer
 from openlineage.client.facet import (
     BaseFacet,
     DocumentationJobFacet,
@@ -30,7 +30,6 @@ if TYPE_CHECKING:
     from airflow.models.dagrun import DagRun
 
 
-_DAG_DEFAULT_OWNER = "anonymous"
 _DAG_DEFAULT_NAMESPACE = "default"
 
 _DAG_NAMESPACE = os.getenv("OPENLINEAGE_NAMESPACE", None)
@@ -45,30 +44,18 @@ _PRODUCER = (
 set_producer(_PRODUCER)
 
 
-log = logging.getLogger(__name__)
-
-
-class OpenLineageAdapter:
+class OpenLineageAdapter(LoggingMixin):
     """
     Adapter for translating Airflow metadata to OpenLineage events,
     instead of directly creating them from Airflow code.
     """
 
-    _client = None
+    def __init__(self):
+        self._client = None
 
     def get_or_create_openlineage_client(self) -> OpenLineageClient:
         if not self._client:
-
-            # Backcomp with Marquez integration
-            marquez_url = os.getenv("MARQUEZ_URL")
-            marquez_api_key = os.getenv("MARQUEZ_API_KEY")
-            if marquez_url:
-                log.info(f"Sending lineage events to {marquez_url}")
-                self._client = OpenLineageClient(
-                    marquez_url, OpenLineageClientOptions(api_key=marquez_api_key)
-                )
-            else:
-                self._client = OpenLineageClient.from_environment()
+            self._client = OpenLineageClient.from_environment()
         return self._client
 
     def build_dag_run_id(self, dag_id, dag_run_id):
@@ -90,7 +77,7 @@ class OpenLineageAdapter:
         try:
             return self.get_or_create_openlineage_client().emit(event)
         except requests.exceptions.RequestException:
-            log.exception(f"Failed to emit OpenLineage event of id {event.run.runId}")
+            self.log.exception(f"Failed to emit OpenLineage event of id {event.run.runId}")
 
     def start_task(
         self,
