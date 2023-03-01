@@ -32,9 +32,7 @@ if TYPE_CHECKING:
 
 _DAG_DEFAULT_NAMESPACE = "default"
 
-_DAG_NAMESPACE = os.getenv("OPENLINEAGE_NAMESPACE", None)
-if not _DAG_NAMESPACE:
-    _DAG_NAMESPACE = os.getenv("MARQUEZ_NAMESPACE", _DAG_DEFAULT_NAMESPACE)
+_DAG_NAMESPACE = os.getenv("OPENLINEAGE_NAMESPACE", _DAG_DEFAULT_NAMESPACE)
 
 _PRODUCER = (
     f"https://github.com/apache/airflow/tree/"
