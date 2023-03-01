@@ -98,10 +98,10 @@ class ExtractorManager(LoggingMixin):
         return None
 
     def extract_inlets_and_outlets(
-            self,
-            task_metadata: OperatorLineage,
-            inlets: list,
-            outlets: list,
+        self,
+        task_metadata: OperatorLineage,
+        inlets: list,
+        outlets: list,
     ):
         from airflow.providers.openlineage.utils.converters import convert_to_dataset
 
