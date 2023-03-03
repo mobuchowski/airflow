@@ -8,9 +8,9 @@ from typing import TYPE_CHECKING
 
 import requests.exceptions
 
-from airflow.providers.openlineage import version as OPENLINEAGE_AIRFLOW_VERSION
+from airflow.providers.openlineage import version as OPENLINEAGE_PROVIDER_VERSION
 from airflow.providers.openlineage.extractors import OperatorLineage
-from airflow.providers.openlineage.utils import DagUtils, redact_with_exclusions
+from airflow.providers.openlineage.utils import redact_with_exclusions
 from airflow.utils.log.logging_mixin import LoggingMixin
 from openlineage.client import OpenLineageClient, set_producer
 from openlineage.client.facet import (
@@ -36,7 +36,7 @@ _DAG_NAMESPACE = os.getenv("OPENLINEAGE_NAMESPACE", _DAG_DEFAULT_NAMESPACE)
 
 _PRODUCER = (
     f"https://github.com/apache/airflow/tree/"
-    f"{OPENLINEAGE_AIRFLOW_VERSION}/integration/airflow"
+    f"{OPENLINEAGE_PROVIDER_VERSION}/integration/airflow"
 )
 
 set_producer(_PRODUCER)
@@ -48,8 +48,9 @@ class OpenLineageAdapter(LoggingMixin):
     instead of directly creating them from Airflow code.
     """
 
-    def __init__(self):
-        self._client = None
+    def __init__(self, client=None):
+        super().__init__()
+        self._client = client
 
     def get_or_create_openlineage_client(self) -> OpenLineageClient:
         if not self._client:
@@ -114,9 +115,11 @@ class OpenLineageAdapter(LoggingMixin):
         processing_engine_version_facet = ProcessingEngineRunFacet(
             version=AIRFLOW_VERSION,
             name="Airflow",
-            openlineageAdapterVersion=OPENLINEAGE_AIRFLOW_VERSION,
+            openlineageAdapterVersion=OPENLINEAGE_PROVIDER_VERSION,
         )
 
+        if not run_facets:
+            run_facets = {}
         run_facets["processing_engine"] = processing_engine_version_facet  # type: ignore
         event = RunEvent(
             eventType=RunState.START,
@@ -137,8 +140,8 @@ class OpenLineageAdapter(LoggingMixin):
                 owners=owners,
                 job_facets=task.job_facets if task else None,
             ),
-            inputs=task.inputs if task else None,
-            outputs=task.outputs if task else None,
+            inputs=task.inputs if task else [],
+            outputs=task.outputs if task else [],
             producer=_PRODUCER,
         )
         self.emit(event)
@@ -193,7 +196,7 @@ class OpenLineageAdapter(LoggingMixin):
     ):
         event = RunEvent(
             eventType=RunState.START,
-            eventTime=DagUtils.to_iso_8601(dag_run.start_date),
+            eventTime=dag_run.start_date.isoformat(),
             job=Job(name=dag_run.dag_id, namespace=_DAG_NAMESPACE),
             run=self._build_run(
                 run_id=self.build_dag_run_id(dag_run.dag_id, dag_run.run_id),
@@ -209,7 +212,7 @@ class OpenLineageAdapter(LoggingMixin):
     def dag_success(self, dag_run: DagRun, msg: str):
         event = RunEvent(
             eventType=RunState.COMPLETE,
-            eventTime=DagUtils.to_iso_8601(dag_run.end_date),
+            eventTime=dag_run.end_date.isoformat(),
             job=Job(name=dag_run.dag_id, namespace=_DAG_NAMESPACE),
             run=Run(runId=self.build_dag_run_id(dag_run.dag_id, dag_run.run_id)),
             inputs=[],
@@ -221,7 +224,7 @@ class OpenLineageAdapter(LoggingMixin):
     def dag_failed(self, dag_run: DagRun, msg: str):
         event = RunEvent(
             eventType=RunState.FAIL,
-            eventTime=DagUtils.to_iso_8601(dag_run.end_date),
+            eventTime=dag_run.end_date.isoformat(),
             job=Job(name=dag_run.dag_id, namespace=_DAG_NAMESPACE),
             run=Run(
                 runId=self.build_dag_run_id(dag_run.dag_id, dag_run.run_id),

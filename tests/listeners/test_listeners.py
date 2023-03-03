@@ -25,7 +25,7 @@ from airflow.listeners.listener import get_listener_manager
 from airflow.operators.bash import BashOperator
 from airflow.utils import timezone
 from airflow.utils.session import provide_session
-from airflow.utils.state import TaskInstanceState, DagRunState
+from airflow.utils.state import DagRunState, TaskInstanceState
 from tests.listeners import (
     class_listener,
     full_listener,

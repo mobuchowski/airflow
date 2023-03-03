@@ -29,7 +29,6 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import attr
-from pendulum import from_timestamp
 
 from airflow.models import DAG as AIRFLOW_DAG
 from airflow.providers.openlineage.plugins.facets import (
@@ -54,7 +53,7 @@ def openlineage_job_name(dag_id: str, task_id: str) -> str:
     return f"{dag_id}.{task_id}"
 
 
-def get_operator_class(task: "BaseOperator") -> type:
+def get_operator_class(task: BaseOperator) -> type:
     if task.__class__.__name__ in ("DecoratedMappedOperator", "MappedOperator"):
         return task.operator_class
     return task.__class__
@@ -206,7 +205,7 @@ def get_job_name(task):
 
 
 def get_custom_facets(
-    dagrun, task, is_external_trigger: bool, task_instance: "TaskInstance" = None
+    dagrun, task, is_external_trigger: bool, task_instance: TaskInstance = None
 ) -> dict[str, Any]:
     custom_facets = {
         "airflow_runArgs": AirflowRunArgsRunFacet(is_external_trigger),
@@ -413,40 +412,6 @@ def get_dagrun_start_end(dagrun: DagRun, dag: DAG):
     start = dagrun.execution_date
     end = dag.following_schedule(start)
     return start, end or start
-
-
-class DagUtils:
-    """Helper class to control some of te DAG attributes."""
-
-    def get_execution_date(**kwargs):
-        return kwargs.get("execution_date")
-
-    @staticmethod
-    def get_start_time(execution_date=None):
-        if execution_date:
-            return DagUtils.to_iso_8601(execution_date)
-        else:
-            return None
-
-    @staticmethod
-    def get_end_time(execution_date, default):
-        if execution_date:
-            end_time = default
-        else:
-            end_time = None
-
-        if end_time:
-            end_time = DagUtils.to_iso_8601(end_time)
-        return end_time
-
-    @staticmethod
-    def to_iso_8601(dt):
-        if not dt:
-            return None
-        if isinstance(dt, int):
-            dt = from_timestamp(dt / 1000.0)
-
-        return dt.strftime(_NOMINAL_TIME_FORMAT)
 
 
 def import_from_string(path: str):

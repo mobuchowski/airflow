@@ -291,7 +291,7 @@ def prepare_stat_with_tags(fn: T) -> T:
         if self.influxdb_tags_enabled:
             if stat is not None and tags is not None:
                 for k, v in tags.items():
-                    if all((c not in [",", "="] for c in v + k)):
+                    if all(c not in [",", "="] for c in v + k):
                         stat += f",{k}={v}"
                     else:
                         log.error("Dropping invalid tag: %s=%s.", k, v)

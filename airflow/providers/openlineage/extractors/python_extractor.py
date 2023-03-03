@@ -13,11 +13,6 @@ from airflow.providers.openlineage.plugins.facets import (
 )
 from openlineage.client.facet import SourceCodeJobFacet
 
-from airflow.providers.openlineage.plugins.facets import (
-    UnknownOperatorAttributeRunFacet,
-    UnknownOperatorInstance,
-)
-
 
 class PythonExtractor(BaseExtractor):
     """

@@ -64,7 +64,7 @@ class GCSBlobTrigger(BaseTrigger):
             },
         )
 
-    async def run(self) -> AsyncIterator["TriggerEvent"]:
+    async def run(self) -> AsyncIterator[TriggerEvent]:
         """Simple loop until the relevant file/folder is found."""
         try:
             hook = self._get_async_hook()

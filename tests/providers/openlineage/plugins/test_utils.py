@@ -1,5 +1,6 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import datetime
 import json
@@ -8,29 +9,22 @@ import uuid
 from json import JSONEncoder
 
 import attr
-import pendulum
-import pytest
+from openlineage.client.utils import RedactMixin
 from pendulum.tz.timezone import Timezone
+from pkg_resources import parse_version
 
+from airflow.models import DAG as AIRFLOW_DAG, DagModel
+from airflow.operators.empty import EmptyOperator
 from airflow.providers.openlineage.utils import (
-    DagUtils,
     InfoJsonEncodable,
     _is_name_redactable,
     get_connection,
-    get_dagrun_start_end,
     get_location,
     redact_with_exclusions,
     to_json_encodable,
     url_to_https,
 )
-from openlineage.client.utils import RedactMixin
-from pkg_resources import parse_version
-
-from airflow.models import DAG as AIRFLOW_DAG
-from airflow.models import DagModel
-from airflow.operators.empty import EmptyOperator
 from airflow.utils.state import State
-from airflow.version import version as AIRFLOW_VERSION
 
 AIRFLOW_CONN_ID = 'test_db'
 AIRFLOW_CONN_URI = 'postgres://localhost:5432/testdb'
@@ -69,34 +63,13 @@ def test_url_to_https_no_url():
     assert url_to_https("") is None
 
 
-def test_datetime_to_iso_8601():
-    dt = datetime.datetime.utcfromtimestamp(1500100900)
-    assert "2017-07-15T06:41:40.000000Z" == DagUtils.to_iso_8601(dt)
-
-    dt = datetime.datetime(2021, 8, 6, 2, 5, 1)
-    assert "2021-08-06T02:05:01.000000Z" == DagUtils.to_iso_8601(dt)
-
-
-def test_pendulum_to_iso_8601():
-    dt = pendulum.from_timestamp(1500100900)
-    assert "2017-07-15T06:41:40.000000Z" == DagUtils.to_iso_8601(dt)
-
-    dt = pendulum.datetime(2021, 8, 6, 2, 5, 1)
-    assert "2021-08-06T02:05:01.000000Z" == DagUtils.to_iso_8601(dt)
-
-    tz = pendulum.timezone("America/Los_Angeles")
-    assert "2021-08-05T19:05:01.000000Z" == DagUtils.to_iso_8601(tz.convert(dt))
-
-
-@pytest.mark.skipif(
-    parse_version(AIRFLOW_VERSION) < parse_version("2.4.0"),
-    reason="Airflow < 2.4.0"
-)
 def test_get_dagrun_start_end():
     start_date = datetime.datetime(2022, 1, 1)
+    end_date = datetime.datetime(2022, 1, 1, hour=2)
     dag = AIRFLOW_DAG(
         "test",
         start_date=start_date,
+        end_date=end_date,
         schedule_interval="@once"
     )
     AIRFLOW_DAG.bulk_write_to_db([dag])
@@ -108,7 +81,8 @@ def test_get_dagrun_start_end():
         data_interval=dag.get_next_data_interval(dag_model))
     assert dagrun.data_interval_start is not None
     start_date_tz = datetime.datetime(2022, 1, 1, tzinfo=Timezone('UTC'))
-    assert get_dagrun_start_end(dagrun, dag) == (start_date_tz, start_date_tz)
+    end_date_tz = datetime.datetime(2022, 1, 1, hour=2, tzinfo=Timezone('UTC'))
+    assert dagrun.data_interval_start, dagrun.data_interval_end == (start_date_tz, end_date_tz)
 
 
 def test_parse_version():

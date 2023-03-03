@@ -148,7 +148,7 @@ class DataprocClusterTrigger(DataprocBaseTrigger):
             },
         )
 
-    async def run(self) -> AsyncIterator["TriggerEvent"]:
+    async def run(self) -> AsyncIterator[TriggerEvent]:
         while True:
             cluster = await self.get_async_hook().get_cluster(
                 project_id=self.project_id, region=self.region, cluster_name=self.cluster_name
@@ -266,7 +266,7 @@ class DataprocDeleteClusterTrigger(DataprocBaseTrigger):
             },
         )
 
-    async def run(self) -> AsyncIterator["TriggerEvent"]:
+    async def run(self) -> AsyncIterator[TriggerEvent]:
         """Wait until cluster is deleted completely"""
         while self.end_time > time.time():
             try:
@@ -315,7 +315,7 @@ class DataprocWorkflowTrigger(DataprocBaseTrigger):
             },
         )
 
-    async def run(self) -> AsyncIterator["TriggerEvent"]:
+    async def run(self) -> AsyncIterator[TriggerEvent]:
         hook = self.get_async_hook()
         while True:
             try:

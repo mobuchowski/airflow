@@ -10,10 +10,8 @@ from airflow.listeners import hookimpl
 from airflow.providers.openlineage.extractors import ExtractorManager
 from airflow.providers.openlineage.plugins.adapter import OpenLineageAdapter
 from airflow.providers.openlineage.utils import (
-    DagUtils,
     get_airflow_run_facet,
     get_custom_facets,
-    get_dagrun_start_end,
     get_job_name,
     get_task_location,
     print_exception,
@@ -68,18 +66,16 @@ class OpenLineageListener:
 
             task_metadata = self.extractor_manager.extract_metadata(dagrun, task)
 
-            start, end = get_dagrun_start_end(dagrun=dagrun, dag=dag)
-
             self.adapter.start_task(
                 run_id=task_uuid,
                 job_name=get_job_name(task),
                 job_description=dag.description,
-                event_time=DagUtils.get_start_time(task_instance.start_date),
+                event_time=task_instance.start_date.isoformat(),
                 parent_job_name=dag.dag_id,
                 parent_run_id=parent_run_id,
                 code_location=get_task_location(task),
-                nominal_start_time=DagUtils.get_start_time(start),
-                nominal_end_time=DagUtils.to_iso_8601(end),
+                nominal_start_time=dagrun.data_interval_start.isoformat(),
+                nominal_end_time=dagrun.data_interval_end.isoformat(),
                 owners=dag.owner.split(", "),
                 task=task_metadata,
                 run_facets={
@@ -112,7 +108,7 @@ class OpenLineageListener:
             self.adapter.complete_task(
                 run_id=task_uuid,
                 job_name=get_job_name(task),
-                end_time=DagUtils.to_iso_8601(task_instance.end_date),
+                end_time=task_instance.end_date.isoformat(),
                 task=task_metadata,
             )
 
@@ -138,7 +134,7 @@ class OpenLineageListener:
             self.adapter.fail_task(
                 run_id=task_uuid,
                 job_name=get_job_name(task),
-                end_time=DagUtils.to_iso_8601(task_instance.end_date),
+                end_time=task_instance.end_date.isoformat(),
                 task=task_metadata,
             )
 
@@ -159,13 +155,12 @@ class OpenLineageListener:
         if not self.executor:
             self.log.error("Executor have not started before `on_dag_run_running`")
             return
-        start, end = get_dagrun_start_end(dag_run, dag_run.dag)
         self.executor.submit(
             self.adapter.dag_started,
             dag_run=dag_run,
             msg=msg,
-            nominal_start_time=DagUtils.get_start_time(start),
-            nominal_end_time=DagUtils.to_iso_8601(end),
+            nominal_start_time=dag_run.data_interval_start.isoformat(),
+            nominal_end_time=dag_run.data_interval_end.isoformat(),
         )
 
     @hookimpl

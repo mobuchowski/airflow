@@ -44,7 +44,12 @@ class TableSchema:
     def to_dataset(self, namespace: str, database: str | None = None) -> Dataset:
         # Prefix the table name with database and schema name using
         # the format: {database_name}.{table_schema}.{table_name}.
-        name = ".".join(filter(lambda x: x is not None, [self.database if self.database else database, self.schema, self.table]))
+        name = ".".join(
+            filter(
+                lambda x: x is not None,
+                [self.database if self.database else database, self.schema, self.table]
+            )
+        )
         return Dataset(
             namespace=namespace,
             name=name,
@@ -57,7 +62,7 @@ class TableSchema:
 
 
 def execute_query_on_hook(
-    hook: "BaseHook",
+    hook: BaseHook,
     query: str
 ) -> Iterator[tuple]:
     with closing(hook.get_conn()) as conn:
@@ -66,7 +71,7 @@ def execute_query_on_hook(
 
 
 def get_table_schemas(
-    hook: "BaseHook",
+    hook: BaseHook,
     namespace: str,
     database: str,
     in_query: str | None,

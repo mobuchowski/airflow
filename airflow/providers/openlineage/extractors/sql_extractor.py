@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from typing import TYPE_CHECKING, Callable, Iterable, Optional
+from typing import TYPE_CHECKING, Callable, Iterable
 from urllib.parse import urlparse
 
 from airflow.providers.openlineage.extractors.base import BaseExtractor, OperatorLineage
@@ -53,7 +53,6 @@ class SqlExtractor(BaseExtractor):
         self._scheme: str | None = None
 
     def extract(self) -> OperatorLineage:
-        task_name = f"{self.operator.dag_id}.{self.operator.task_id}"
         job_facets = {"sql": SqlJobFacet(query=self._normalize_sql(self.operator.sql))}
         run_facets: dict = {}
 

@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 from airflow.providers.openlineage.extractors.base import BaseExtractor, OperatorLineage
 from openlineage.client.run import Dataset
 
-
 log = logging.getLogger(__name__)
 
 

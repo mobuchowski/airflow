@@ -7,7 +7,7 @@ from airflow.providers.openlineage.plugins.facets import (
     UnknownOperatorAttributeRunFacet,
     UnknownOperatorInstance,
 )
-from airflow.providers.openlineage.utils import get_job_name, get_operator_class
+from airflow.providers.openlineage.utils import get_operator_class
 from airflow.utils.log.logging_mixin import LoggingMixin
 
 

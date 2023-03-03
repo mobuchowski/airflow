@@ -1,14 +1,12 @@
 # Copyright 2018-2023 contributors to the OpenLineage project
 # SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
 
 import logging
 import os
 from unittest.mock import patch
 
 import pytest
-from pkg_resources import parse_version
-
-from airflow.version import version as AIRFLOW_VERSION
 
 log = logging.getLogger(__name__)
 
