@@ -561,7 +561,10 @@
       "openlineage-integration-common>=0.22.0",
       "openlineage-python>=0.22.0"
     ],
-    "cross-providers-deps": []
+    "cross-providers-deps": [
+      "amazon",
+      "sftp"
+    ]
   },
   "opsgenie": {
     "deps": [

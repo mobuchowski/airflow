@@ -1,0 +1,266 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Copyright 2018-2023 contributors to the OpenLineage project
+# SPDX-License-Identifier: Apache-2.0
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+from openlineage.client.facet import SchemaDatasetFacet, SchemaField, set_producer
+from openlineage.client.run import Dataset
+from openlineage.common.models import DbColumn, DbTableSchema
+from openlineage.common.sql import DbTableMeta
+
+from airflow.providers.openlineage import version as OPENLINEAGE_PROVIDER_VERSION
+from airflow.providers.openlineage.extractors.dbapi_utils import (
+    create_filter_clauses,
+    get_table_schemas,
+)
+
+_PRODUCER = f"https://github.com/apache/airflow/tree/providers-openlineage/{OPENLINEAGE_PROVIDER_VERSION}"
+set_producer(_PRODUCER)
+
+DB_NAME = "FOOD_DELIVERY"
+DB_SCHEMA_NAME = "PUBLIC"
+DB_TABLE_NAME = DbTableMeta("DISCOUNTS")
+DB_TABLE_COLUMNS = [
+    DbColumn(name="ID", type="int4", ordinal_position=1),
+    DbColumn(name="AMOUNT_OFF", type="int4", ordinal_position=2),
+    DbColumn(name="CUSTOMER_EMAIL", type="varchar", ordinal_position=3),
+    DbColumn(name="STARTS_ON", type="timestamp", ordinal_position=4),
+    DbColumn(name="ENDS_ON", type="timestamp", ordinal_position=5),
+]
+DB_TABLE_SCHEMA = DbTableSchema(
+    schema_name=DB_SCHEMA_NAME, table_name=DB_TABLE_NAME, columns=DB_TABLE_COLUMNS
+)
+
+SCHEMA_FACET = SchemaDatasetFacet(
+    fields=[
+        SchemaField(name="ID", type="int4"),
+        SchemaField(name="AMOUNT_OFF", type="int4"),
+        SchemaField(name="CUSTOMER_EMAIL", type="varchar"),
+        SchemaField(name="STARTS_ON", type="timestamp"),
+        SchemaField(name="ENDS_ON", type="timestamp"),
+    ]
+)
+
+
+def test_get_table_schemas():
+    hook = MagicMock()
+    # (2) Mock calls to database
+    rows = [
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "CUSTOMER_EMAIL", 3, "varchar"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "STARTS_ON", 4, "timestamp"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ENDS_ON", 5, "timestamp"),
+    ]
+
+    hook.get_conn.return_value.cursor.return_value.fetchall.side_effect = [rows, rows]
+
+    table_schemas = get_table_schemas(
+        hook=hook,
+        namespace="bigquery",
+        database=DB_NAME,
+        in_query="fake_sql",
+        out_query="another_fake_sql",
+    )
+
+    assert table_schemas == (
+        [
+            Dataset(
+                namespace="bigquery", name="FOOD_DELIVERY.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            )
+        ],
+        [
+            Dataset(
+                namespace="bigquery", name="FOOD_DELIVERY.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            )
+        ],
+    )
+
+
+def test_get_table_schemas_with_mixed_databases():
+    hook = MagicMock()
+    ANOTHER_DB_NAME = "ANOTHER_DB"
+
+    rows = [
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4", DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4", DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "CUSTOMER_EMAIL", 3, "varchar", DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "STARTS_ON", 4, "timestamp", DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ENDS_ON", 5, "timestamp", DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4", ANOTHER_DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4", ANOTHER_DB_NAME),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "CUSTOMER_EMAIL",
+            3,
+            "varchar",
+            ANOTHER_DB_NAME,
+        ),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "STARTS_ON",
+            4,
+            "timestamp",
+            ANOTHER_DB_NAME,
+        ),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "ENDS_ON",
+            5,
+            "timestamp",
+            ANOTHER_DB_NAME,
+        ),
+    ]
+
+    hook.get_conn.return_value.cursor.return_value.fetchall.side_effect = [rows, []]
+
+    table_schemas = get_table_schemas(
+        hook=hook,
+        namespace="bigquery",
+        database=DB_NAME,
+        in_query="fake_sql",
+        out_query="another_fake_sql",
+    )
+
+    assert table_schemas == (
+        [
+            Dataset(
+                namespace="bigquery", name="FOOD_DELIVERY.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            ),
+            Dataset(
+                namespace="bigquery", name="ANOTHER_DB.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            ),
+        ],
+        [],
+    )
+
+
+def test_get_table_schemas_with_mixed_schemas():
+    hook = MagicMock()
+    ANOTHER_DB_SCHEMA_NAME = "ANOTHER_DB_SCHEMA"
+
+    rows = [
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "CUSTOMER_EMAIL", 3, "varchar"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "STARTS_ON", 4, "timestamp"),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ENDS_ON", 5, "timestamp"),
+        (ANOTHER_DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4"),
+        (ANOTHER_DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4"),
+        (ANOTHER_DB_SCHEMA_NAME, DB_TABLE_NAME.name, "CUSTOMER_EMAIL", 3, "varchar"),
+        (ANOTHER_DB_SCHEMA_NAME, DB_TABLE_NAME.name, "STARTS_ON", 4, "timestamp"),
+        (ANOTHER_DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ENDS_ON", 5, "timestamp"),
+    ]
+
+    hook.get_conn.return_value.cursor.return_value.fetchall.side_effect = [rows, []]
+
+    table_schemas = get_table_schemas(
+        hook=hook,
+        namespace="bigquery",
+        database=DB_NAME,
+        in_query="fake_sql",
+        out_query="another_fake_sql",
+    )
+
+    assert table_schemas == (
+        [
+            Dataset(
+                namespace="bigquery", name="FOOD_DELIVERY.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            ),
+            Dataset(
+                namespace="bigquery",
+                name="FOOD_DELIVERY.ANOTHER_DB_SCHEMA.DISCOUNTS",
+                facets={"schema": SCHEMA_FACET},
+            ),
+        ],
+        [],
+    )
+
+
+def test_get_table_schemas_with_other_database():
+    hook = MagicMock()
+    ANOTHER_DB_NAME = "ANOTHER_DB"
+
+    rows = [
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "ID", 1, "int4", ANOTHER_DB_NAME),
+        (DB_SCHEMA_NAME, DB_TABLE_NAME.name, "AMOUNT_OFF", 2, "int4", ANOTHER_DB_NAME),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "CUSTOMER_EMAIL",
+            3,
+            "varchar",
+            ANOTHER_DB_NAME,
+        ),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "STARTS_ON",
+            4,
+            "timestamp",
+            ANOTHER_DB_NAME,
+        ),
+        (
+            DB_SCHEMA_NAME,
+            DB_TABLE_NAME.name,
+            "ENDS_ON",
+            5,
+            "timestamp",
+            ANOTHER_DB_NAME,
+        ),
+    ]
+
+    hook.get_conn.return_value.cursor.return_value.fetchall.side_effect = [rows, rows]
+
+    table_schemas = get_table_schemas(
+        hook=hook,
+        namespace="bigquery",
+        database=DB_NAME,
+        in_query="fake_sql",
+        out_query="another_fake_sql",
+    )
+
+    assert table_schemas == (
+        [
+            Dataset(
+                namespace="bigquery", name="ANOTHER_DB.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            ),
+        ],
+        [
+            Dataset(
+                namespace="bigquery", name="ANOTHER_DB.PUBLIC.DISCOUNTS", facets={"schema": SCHEMA_FACET}
+            ),
+        ],
+    )
+
+
+def test_create_filter_clauses():
+    assert create_filter_clauses({None: ["C1", "C2"]}) == ["( table_name IN ('C1','C2') )"]
+    assert create_filter_clauses({"Schema1": ["Table1"], "Schema2": ["Table2"]}) == [
+        "( table_schema = 'Schema1' AND table_name IN ('Table1') )",
+        "( table_schema = 'Schema2' AND table_name IN ('Table2') )",
+    ]
+    assert create_filter_clauses({"Schema1": ["Table1", "Table2"]}) == [
+        "( table_schema = 'Schema1' AND table_name IN ('Table1','Table2') )"
+    ]

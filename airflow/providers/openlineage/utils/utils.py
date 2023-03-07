@@ -23,7 +23,6 @@ import logging
 from contextlib import suppress
 from functools import wraps
 from typing import TYPE_CHECKING, Any
-from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 
 import attrs
 from attrs import asdict
@@ -93,35 +92,6 @@ def url_to_https(url) -> str | None:
     if base_url.endswith(".git"):
         base_url = base_url[:-4]
     return base_url
-
-
-def redacted_connection_uri(conn: Connection, filtered_params=None, filtered_prefixes=None):
-    """
-    Return the connection URI for the given Connection.
-    This method additionally filters URI by removing query parameters that are known to carry sensitive data
-    like username, password, access key.
-    """
-    if filtered_prefixes is None:
-        filtered_prefixes = []
-    if filtered_params is None:
-        filtered_params = []
-
-    def filter_key_params(k: str):
-        return k not in filtered_params and any(substr in k for substr in filtered_prefixes)
-
-    conn_uri = conn.get_uri()
-    parsed = urlparse(conn_uri)
-
-    # Remove username and password
-    netloc = f"{parsed.hostname}" + (f":{parsed.port}" if parsed.port else "")
-    parsed = parsed._replace(netloc=netloc)
-    if parsed.query:
-        query_dict = dict(parse_qsl(parsed.query))
-        if conn.EXTRA_KEY in query_dict:
-            query_dict = json.loads(query_dict[conn.EXTRA_KEY])
-        filtered_qs = {k: v for k, v in query_dict.items() if not filter_key_params(k)}
-        parsed = parsed._replace(query=urlencode(filtered_qs))
-    return urlunparse(parsed)
 
 
 def get_connection(conn_id) -> Connection | None:

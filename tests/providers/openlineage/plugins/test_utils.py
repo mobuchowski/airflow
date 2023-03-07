@@ -47,6 +47,7 @@ from airflow.utils.state import State
 AIRFLOW_CONN_ID = "test_db"
 AIRFLOW_CONN_URI = "postgres://localhost:5432/testdb"
 SNOWFLAKE_CONN_URI = "snowflake://12345.us-east-1.snowflakecomputing.com/MyTestRole?extra__snowflake__account=12345&extra__snowflake__database=TEST_DB&extra__snowflake__insecure_mode=false&extra__snowflake__region=us-east-1&extra__snowflake__role=MyTestRole&extra__snowflake__warehouse=TEST_WH&extra__snowflake__aws_access_key_id=123456&extra__snowflake__aws_secret_access_key=abcdefg"  # NOQA
+GENERIC_CONN_ID = "database://login:password@host:123/role?param=value&param_secret=hideit"
 
 
 class SafeStrDict(dict):
