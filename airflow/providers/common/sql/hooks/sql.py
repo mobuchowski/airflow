@@ -19,6 +19,7 @@ from __future__ import annotations
 from contextlib import closing
 from datetime import datetime
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence, cast
+from urllib.parse import urlparse
 
 import sqlparse
 from packaging.version import Version
@@ -516,3 +517,40 @@ class DbApiHook(BaseForDbApiHook):
             message = str(e)
 
         return status, message
+
+    def get_database_info(self, connection):
+        from airflow.providers.openlineage.sqlparser import DatabaseInfo
+
+        return DatabaseInfo(
+            scheme=self.get_database_dialect(connection), authority=self._get_authority(connection)
+        )
+
+    def get_database_dialect(self, connection):
+        """Method used for SQL parsing. Naively tries to use Connection's conn_type"""
+        return connection.conn_type
+
+    def _get_authority(self, connection):
+        """Returns authority part (without user info) of OpenLineage namespace URI."""
+        if connection.port and connection.host:
+            authority = f"{connection.host}:{connection.port}"
+        else:
+            parsed = urlparse(connection.get_uri())
+            authority = f"{parsed.hostname}:{parsed.port}"
+        return authority
+
+    def get_default_schema(self):
+        """
+        Returns default schema specific to database.
+        See: :class:`~providers.openlineage.utils.sqlparser.SQLParser`
+        """
+        return self.__schema or "public"
+
+    def get_database_specific_lineage(self, task_instance):
+        """
+        Returns additional database specific lineage, e.g.
+        query execution information.
+        This method is called only on completion of the task.
+
+        :param task_instance: this may be used to retrieve additional information
+            that is collected during runtime of the task
+        """

@@ -20,7 +20,7 @@ from __future__ import annotations
 import ast
 import re
 from functools import cached_property
-from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, NoReturn, Sequence, SupportsAbs
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Mapping, NoReturn, Sequence, SupportsAbs, cast
 
 from airflow.exceptions import AirflowException, AirflowFailException
 from airflow.hooks.base import BaseHook
@@ -289,6 +289,51 @@ class SQLExecuteQueryOperator(BaseSQLOperator):
         """Parse template file for attribute parameters."""
         if isinstance(self.parameters, str):
             self.parameters = ast.literal_eval(self.parameters)
+
+    def get_openlineage_facets_on_start(self):
+        try:
+            from airflow.providers.openlineage.extractors import OperatorLineage
+            from airflow.providers.openlineage.sqlparser import SQLParser
+        except ImportError:
+            return None
+
+        hook: DbApiHook = self.get_db_hook()
+
+        connection = hook.get_connection(getattr(hook, cast(str, hook.conn_name_attr)))
+        try:
+            database_info = hook.get_database_info(connection)
+        except AttributeError:
+            self.log.debug("%s has no database info provided", hook)
+            return None
+
+        try:
+            sql_parser = SQLParser(
+                dialect=hook.get_database_dialect(connection), default_schema=hook.get_default_schema()
+            )
+        except AttributeError:
+            self.log.debug("%s failed to get database dialect", hook)
+            return None
+
+        operator_lineage: OperatorLineage = sql_parser.generate_openlineage_metadata_from_sql(
+            sql=self.sql, hook=hook, database_info=database_info, database=self.database
+        )
+
+        return operator_lineage
+
+    def get_openlineage_facets_on_complete(self, task_instance):
+        operator_lineage = self.get_openlineage_facets_on_start()
+        try:
+            from airflow.providers.openlineage.extractors import OperatorLineage
+        except ImportError:
+            return operator_lineage
+
+        hook: DbApiHook = self.get_db_hook()
+        try:
+            database_specific_lineage: OperatorLineage = hook.get_database_specific_lineage(task_instance)
+        except AttributeError:
+            return operator_lineage
+
+        return OperatorLineage.merge(operator_lineage, database_specific_lineage)
 
 
 class SQLColumnCheckOperator(BaseSQLOperator):
