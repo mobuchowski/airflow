@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import copy
+import inspect
 import logging
 import os
 import re
@@ -27,6 +28,7 @@ from collections import namedtuple
 from datetime import date, datetime, timedelta
 from subprocess import CalledProcessError
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 from slugify import slugify
@@ -52,6 +54,7 @@ from airflow.utils.state import DagRunState, State, TaskInstanceState
 from airflow.utils.trigger_rule import TriggerRule
 from airflow.utils.types import NOTSET, DagRunType
 from tests.test_utils import AIRFLOW_MAIN_FOLDER
+from tests.test_utils.config import conf_vars
 from tests.test_utils.db import clear_db_runs
 
 DEFAULT_DATE = timezone.datetime(2016, 1, 1)
@@ -1089,3 +1092,98 @@ class TestCurrentContextRuntime:
         with DAG(dag_id="edge_case_context_dag", default_args=DEFAULT_ARGS, schedule="@once"):
             op = PythonOperator(python_callable=get_all_the_context, task_id="get_all_the_context")
             op.run(ignore_first_depends_on_past=True, ignore_ti_state=True)
+
+
+try:
+    from openlineage.client.facet import SourceCodeJobFacet
+
+    from airflow.providers.openlineage.utils.utils import (
+        is_source_enabled,
+    )
+
+    skip_ol_test = False
+except ImportError:
+    skip_ol_test = True
+
+
+def callable_function():
+    print(10)
+
+
+@pytest.mark.skipif(skip_ol_test, reason="Failed to import OL classes - OL provider not installed")
+class TestPythonOperatorOpenLineageMetadata:
+    dag = DAG(
+        dag_id="test_dummy_dag",
+        description="Test dummy DAG",
+        schedule_interval="*/2 * * * *",
+        start_date=datetime(2020, 1, 8),
+        catchup=False,
+        max_active_runs=1,
+    )
+    python_task_getcwd = PythonOperator(task_id="python-task", python_callable=os.getcwd, dag=dag)
+    code = "def callable_function():\n    print(10)\n"
+
+    @pytest.fixture(autouse=True, scope="function")
+    def clear_cache(self):
+        is_source_enabled.cache_clear()
+
+    def test_extract_source_code(self):
+        code = inspect.getsource(callable_function)
+        assert code == self.code
+
+    def test_extract_operator_code_disables_on_no_env(self):
+        operator = PythonOperator(task_id="taskid", python_callable=callable_function)
+        assert "sourceCode" not in operator.get_openlineage_facets_on_start().job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "False"})
+    def test_extract_operator_code_enables_on_false_env(self):
+        operator = PythonOperator(task_id="taskid", python_callable=callable_function)
+        assert operator.get_openlineage_facets_on_start().job_facets["sourceCode"] == SourceCodeJobFacet(
+            "python", self.code
+        )
+
+    @conf_vars({("openlineage", "disable_source_code"): "False"})
+    def test_extract_operator_code_enables_on_false_conf(self):
+        operator = PythonOperator(task_id="taskid", python_callable=callable_function)
+        assert operator.get_openlineage_facets_on_start().job_facets["sourceCode"] == SourceCodeJobFacet(
+            "python", self.code
+        )
+
+    def test_extract_dag_code_disables_on_no_env_or_conf(self):
+        assert "sourceCode" not in self.python_task_getcwd.get_openlineage_facets_on_start().job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "False"})
+    def test_extract_dag_code_enables_on_true_env(self):
+        assert self.python_task_getcwd.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("python", "<built-in function getcwd>")
+
+    @conf_vars({("openlineage", "disable_source_code"): "False"})
+    def test_extract_dag_code_enables_on_true_conf(self):
+        assert self.python_task_getcwd.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("python", "<built-in function getcwd>")
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "True"})
+    def test_extract_dag_code_env_disables_on_true(self):
+        metadata = self.python_task_getcwd.get_openlineage_facets_on_start()
+        assert metadata is not None
+        assert "sourceCode" not in metadata.job_facets
+
+    @conf_vars({("openlineage", "disable_source_code"): "True"})
+    def test_extract_dag_code_conf_disables_on_true(self):
+        metadata = self.python_task_getcwd.get_openlineage_facets_on_start()
+        assert metadata is not None
+        assert "sourceCode" not in metadata.job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "asdftgeragdsfgawef"})
+    def test_extract_dag_code_env_does_not_disable_on_random_string(self):
+        assert self.python_task_getcwd.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("python", "<built-in function getcwd>")
+
+    @conf_vars({("openlineage", "disable_source_code"): "asdftgeragdsfgawef"})
+    def test_extract_dag_code_conf_does_not_disable_on_random_string(self):
+        assert self.python_task_getcwd.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("python", "<built-in function getcwd>")

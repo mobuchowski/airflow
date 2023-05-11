@@ -23,8 +23,6 @@ from typing import TYPE_CHECKING
 from airflow.configuration import conf
 from airflow.providers.openlineage.extractors import BaseExtractor, OperatorLineage
 from airflow.providers.openlineage.extractors.base import DefaultExtractor
-from airflow.providers.openlineage.extractors.bash import BashExtractor
-from airflow.providers.openlineage.extractors.python import PythonExtractor
 from airflow.providers.openlineage.plugins.facets import (
     UnknownOperatorAttributeRunFacet,
     UnknownOperatorInstance,
@@ -42,15 +40,7 @@ def try_import_from_string(string):
         return import_string(string)
 
 
-_extractors: list[type[BaseExtractor]] = list(
-    filter(
-        lambda t: t is not None,
-        [
-            PythonExtractor,
-            BashExtractor,
-        ],
-    )
-)
+_extractors: list[type[BaseExtractor]] = []
 
 
 class ExtractorManager(LoggingMixin):

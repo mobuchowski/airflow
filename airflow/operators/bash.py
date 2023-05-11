@@ -214,3 +214,47 @@ class BashOperator(BaseOperator):
 
     def on_kill(self) -> None:
         self.subprocess_hook.send_sigterm()
+
+    def get_openlineage_facets_on_start(self):
+        # If OL provider is not installed, skip
+        try:
+            from openlineage.client.facet import SourceCodeJobFacet
+
+            from airflow.providers.openlineage.extractors import OperatorLineage
+            from airflow.providers.openlineage.plugins.facets import (
+                UnknownOperatorAttributeRunFacet,
+                UnknownOperatorInstance,
+            )
+            from airflow.providers.openlineage.utils.utils import (
+                get_filtered_unknown_operator_keys,
+                is_source_enabled,
+            )
+        except ImportError:
+            return
+
+        job_facet: dict = {}
+        if is_source_enabled():
+            job_facet = {
+                "sourceCode": SourceCodeJobFacet(
+                    language="bash",
+                    # We're on worker and should have access to DAG files
+                    source=self.bash_command,
+                )
+            }
+
+        return OperatorLineage(
+            job_facets=job_facet,
+            run_facets={
+                # The BashOperator is recorded as an "unknownSource" even though we have an
+                # extractor, as the data lineage cannot be determined from the operator
+                # directly _yet_.
+                "unknownSourceAttribute": UnknownOperatorAttributeRunFacet(
+                    unknownItems=[
+                        UnknownOperatorInstance(
+                            name="BashOperator",
+                            properties=get_filtered_unknown_operator_keys(self),
+                        )
+                    ]
+                )
+            },
+        )

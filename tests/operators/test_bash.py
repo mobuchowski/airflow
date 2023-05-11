@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from time import sleep
 from unittest import mock
+from unittest.mock import patch
 
 import pytest
 
@@ -32,6 +33,7 @@ from airflow.operators.bash import BashOperator
 from airflow.utils import timezone
 from airflow.utils.state import State
 from airflow.utils.types import DagRunType
+from tests.test_utils.config import conf_vars
 
 DEFAULT_DATE = datetime(2016, 1, 1, tzinfo=timezone.utc)
 END_DATE = datetime(2016, 1, 2, tzinfo=timezone.utc)
@@ -219,3 +221,88 @@ class TestBashOperator:
                 os.kill(proc.pid, signal.SIGTERM)
                 assert False, "BashOperator's subprocess still running after stopping on timeout!"
                 break
+
+
+try:
+    from openlineage.client.facet import SourceCodeJobFacet
+
+    from airflow.providers.openlineage.utils.utils import is_source_enabled
+
+    skip_ol_test = False
+except ImportError:
+    skip_ol_test = True
+
+
+@pytest.mark.skipif(skip_ol_test, reason="Failed to import OL classes - OL provider not installed")
+class TestOpenLineageMetadata:
+    with DAG(
+        dag_id="test_dummy_dag",
+        description="Test dummy DAG",
+        schedule_interval="*/2 * * * *",
+        start_date=datetime(2020, 1, 8),
+        catchup=False,
+        max_active_runs=1,
+    ) as dag:
+        bash_task = BashOperator(task_id="bash-task", bash_command="ls -halt && exit 0", dag=dag)
+
+    @pytest.fixture(autouse=True, scope="function")
+    def clear_cache(self):
+        is_source_enabled.cache_clear()
+
+    def test_extract_operator_bash_command_disables_without_env(self):
+        operator = BashOperator(task_id="taskid", bash_command="exit 0")
+        assert "sourceCode" not in operator.get_openlineage_facets_on_start().job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "False"})
+    def test_extract_operator_bash_command_enables_on_true_env(self):
+        operator = BashOperator(task_id="taskid", bash_command="exit 0")
+        assert operator.get_openlineage_facets_on_start().job_facets["sourceCode"] == SourceCodeJobFacet(
+            "bash", "exit 0"
+        )
+
+    @conf_vars({("openlineage", "disable_source_code"): "False"})
+    def test_extract_operator_bash_command_enables_on_true_conf(self):
+        operator = BashOperator(task_id="taskid", bash_command="exit 0")
+        assert operator.get_openlineage_facets_on_start().job_facets["sourceCode"] == SourceCodeJobFacet(
+            "bash", "exit 0"
+        )
+
+    @patch.dict(
+        os.environ,
+        {k: v for k, v in os.environ.items() if k != "OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE"},
+        clear=True,
+    )
+    def test_extract_dag_bash_command_disabled_without_env(self):
+        assert "sourceCode" not in self.bash_task.get_openlineage_facets_on_start().job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "False"})
+    def test_extract_dag_bash_command_enables_on_true_env(self):
+        assert self.bash_task.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("bash", "ls -halt && exit 0")
+
+    @conf_vars({("openlineage", "disable_source_code"): "False"})
+    def test_extract_dag_bash_command_enables_on_true_conf(self):
+        assert self.bash_task.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("bash", "ls -halt && exit 0")
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "True"})
+    def test_extract_dag_bash_command_env_disables_on_true(self):
+        assert "sourceCode" not in self.bash_task.get_openlineage_facets_on_start().job_facets
+
+    @conf_vars({("openlineage", "disable_source_code"): "true"})
+    def test_extract_dag_bash_command_conf_disables_on_true(self):
+        assert "sourceCode" not in self.bash_task.get_openlineage_facets_on_start().job_facets
+
+    @patch.dict(os.environ, {"OPENLINEAGE_AIRFLOW_DISABLE_SOURCE_CODE": "asdftgeragdsfgawef"})
+    def test_extract_dag_bash_command_env_does_not_disable_on_random_string(self):
+        assert self.bash_task.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("bash", "ls -halt && exit 0")
+
+    @conf_vars({("openlineage", "disable_source_code"): "asdftgeragdsfgawef"})
+    def test_extract_dag_bash_command_conf_does_not_disable_on_random_string(self):
+        assert self.bash_task.get_openlineage_facets_on_start().job_facets[
+            "sourceCode"
+        ] == SourceCodeJobFacet("bash", "ls -halt && exit 0")
