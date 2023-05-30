@@ -310,3 +310,21 @@ class PostgresHook(DbApiHook):
                 sql += f"{on_conflict_str} DO NOTHING"
 
         return sql
+
+    def get_database_info(self, connection):
+        from airflow.providers.openlineage.sqlparser import DatabaseInfo
+
+        return DatabaseInfo(
+            scheme=self.get_database_dialect(connection), authority=self._get_authority(connection)
+        )
+
+    def get_database_dialect(self, connection):
+        """Method used for SQL parsing. Naively tries to use Connection's conn_type"""
+        return connection.conn_type
+
+    def get_default_schema(self):
+        """
+        Returns default schema specific to database.
+        See: :class:`~providers.openlineage.utils.sqlparser.SQLParser`
+        """
+        return self.database

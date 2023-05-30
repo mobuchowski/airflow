@@ -112,3 +112,24 @@ class TestPostgres:
             runtime_parameters={"statement_timeout": "3000ms"},
         )
         op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
+
+    def test_postgres_operator_openlineage(self):
+        sql = """
+        CREATE TABLE IF NOT EXISTS test_airflow (
+            dummy VARCHAR(50)
+        );
+        """
+        op = PostgresOperator(task_id="basic_postgres", sql=sql, dag=self.dag)
+
+        lineage = op.get_openlineage_facets_on_start()
+        assert len(lineage.inputs) == 0
+        assert len(lineage.outputs) == 0
+        op.run(start_date=DEFAULT_DATE, end_date=DEFAULT_DATE, ignore_ti_state=True)
+
+        # OpenLineage provider runs same method on complete by default
+        lineage_on_complete = op.get_openlineage_facets_on_start()
+        assert len(lineage_on_complete.inputs) == 0
+        assert len(lineage_on_complete.outputs) == 1
+        assert lineage_on_complete.outputs[0].namespace == "postgres://postgres:None"
+        assert lineage_on_complete.outputs[0].name == "public.test_airflow"
+        assert "schema" in lineage_on_complete.outputs[0].facets

@@ -97,7 +97,7 @@ def assert_outputs_are_printed(expected_outputs: dict[str, str], stderr: str):
                     "tests/providers/postgres/file.py",
                 ),
                 {
-                    "affected-providers-list-as-string": "amazon common.sql google postgres",
+                    "affected-providers-list-as-string": "amazon common.sql google openlineage postgres",
                     "all-python-versions": "['3.8']",
                     "all-python-versions-list-as-string": "3.8",
                     "python-versions": "['3.8']",
@@ -109,7 +109,7 @@ def assert_outputs_are_printed(expected_outputs: dict[str, str], stderr: str):
                     "docs-build": "true",
                     "upgrade-to-newer-dependencies": "false",
                     "parallel-test-types-list-as-string": "Providers[amazon] "
-                    "API Always Providers[common.sql,postgres] Providers[google]",
+                    "API Always Providers[common.sql,openlineage,postgres] Providers[google]",
                 },
                 id="API and providers tests and docs should run",
             )
@@ -163,7 +163,7 @@ def assert_outputs_are_printed(expected_outputs: dict[str, str], stderr: str):
                     "tests/providers/postgres/file.py",
                 ),
                 {
-                    "affected-providers-list-as-string": "amazon common.sql google postgres",
+                    "affected-providers-list-as-string": "amazon common.sql google openlineage postgres",
                     "all-python-versions": "['3.8']",
                     "all-python-versions-list-as-string": "3.8",
                     "python-versions": "['3.8']",
@@ -176,7 +176,7 @@ def assert_outputs_are_printed(expected_outputs: dict[str, str], stderr: str):
                     "run-kubernetes-tests": "true",
                     "upgrade-to-newer-dependencies": "false",
                     "parallel-test-types-list-as-string": "Providers[amazon] "
-                    "Always Providers[common.sql,postgres] Providers[google]",
+                    "Always Providers[common.sql,openlineage,postgres] Providers[google]",
                 },
                 id="Helm tests, providers (both upstream and downstream),"
                 "kubernetes tests and docs should run",
