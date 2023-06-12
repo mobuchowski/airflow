@@ -306,6 +306,10 @@ def ensure_plugins_loaded():
         load_plugins_from_plugin_directory()
         load_entrypoint_plugins()
 
+        from airflow.providers.openlineage.plugins.openlineage import OpenLineageProviderPlugin
+
+        register_plugin(OpenLineageProviderPlugin())
+
         # We don't do anything with these for now, but we want to keep track of
         # them so we can integrate them in to the UI's Connection screens
         for plugin in plugins:

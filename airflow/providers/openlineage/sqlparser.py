@@ -27,7 +27,7 @@ from airflow.providers.openlineage.utils.sql import (
     get_table_schemas,
 )
 from airflow.typing_compat import TypedDict
-from openlineage.client.facet import ExtractionError, ExtractionErrorRunFacet, SqlJobFacet
+from openlineage.client.facet import BaseFacet, ExtractionError, ExtractionErrorRunFacet, SqlJobFacet
 from openlineage.client.run import Dataset
 from openlineage.common.sql import DbTableMeta, SqlMeta, parse
 
@@ -109,9 +109,7 @@ class SQLParser:
 
     def parse(self, sql: list[str] | str) -> SqlMeta | None:
         """Parse a single or a list of SQL statements"""
-        parse_result: SqlMeta | None = parse(
-            sql=sql, dialect=self.dialect, default_schema=self.default_schema
-        )
+        parse_result: SqlMeta | None = parse(sql=sql, dialect=self.dialect, default_schema="")
         return parse_result
 
     def parse_table_schemas(
@@ -161,7 +159,7 @@ class SQLParser:
         :param database_info: database specific information
         :param database: when passed it takes precedence over parsed database name
         """
-        job_facets = {"sql": SqlJobFacet(query=SQLParser.normalize_sql(sql))}
+        job_facets: dict[str, BaseFacet] = {"sql": SqlJobFacet(query=SQLParser.normalize_sql(sql))}
 
         parse_result: SqlMeta | None = self.parse(SQLParser.split_sql_string(sql))
         if not parse_result:
@@ -203,11 +201,12 @@ class SQLParser:
 
     @staticmethod
     def create_namespace(database_info: DatabaseInfo) -> str:
-        return (
-            f"{database_info.scheme}://{database_info.authority}"
-            if database_info.authority
-            else database_info.scheme
-        )
+        return "postgres://db/data"
+        # return (
+        #     f"{database_info.scheme}://{database_info.authority}"
+        #     if database_info.authority
+        #     else database_info.scheme
+        # )
 
     @staticmethod
     def normalize_sql(sql: list[str] | str) -> str:

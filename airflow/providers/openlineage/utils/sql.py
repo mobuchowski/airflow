@@ -60,7 +60,7 @@ class TableSchema:
         name = ".".join(
             filter(
                 lambda x: x is not None,  # type: ignore
-                [self.database if self.database else database, self.schema, self.table],
+                [self.database if self.database else database, self.table],
             )
         )
         return Dataset(

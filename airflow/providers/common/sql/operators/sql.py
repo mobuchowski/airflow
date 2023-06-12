@@ -330,10 +330,11 @@ class SQLExecuteQueryOperator(BaseSQLOperator):
         hook: DbApiHook = self.get_db_hook()
         try:
             database_specific_lineage: OperatorLineage = hook.get_database_specific_lineage(task_instance)
+            if database_specific_lineage:
+                return OperatorLineage.merge(operator_lineage, database_specific_lineage)
         except AttributeError:
             return operator_lineage
-
-        return OperatorLineage.merge(operator_lineage, database_specific_lineage)
+        return operator_lineage
 
 
 class SQLColumnCheckOperator(BaseSQLOperator):
