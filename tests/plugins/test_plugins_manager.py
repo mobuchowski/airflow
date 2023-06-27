@@ -378,6 +378,23 @@ class TestPluginsManager:
             assert get_listener_manager().has_listeners
             assert get_listener_manager().pm.get_plugins().pop().__name__ == "tests.listeners.empty_listener"
 
+    def test_should_import_plugin_from_providers(self):
+        from airflow import plugins_manager
+
+        with mock.patch("airflow.plugins_manager.plugins", []):
+            assert len(plugins_manager.plugins) == 0
+            plugins_manager.load_providers_plugins()
+            assert len(plugins_manager.plugins) >= 2
+
+    def test_does_not_double_import_entrypoint_provider_plugins(self):
+        from airflow import plugins_manager
+
+        with mock.patch("airflow.plugins_manager.plugins", []):
+            assert len(plugins_manager.plugins) == 0
+            plugins_manager.load_entrypoint_plugins()
+            plugins_manager.load_providers_plugins()
+            assert len(plugins_manager.plugins) == 2
+
 
 class TestPluginsDirectorySource:
     def test_should_return_correct_path_name(self):
