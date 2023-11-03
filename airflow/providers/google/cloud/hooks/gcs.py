@@ -222,6 +222,15 @@ class GCSHook(GoogleBaseHook):
             destination_bucket.name,  # type: ignore[union-attr]
         )
 
+        self.add_input_dataset(
+            namespace="gs://" + source_bucket.name,  # type: ignore[attr-defined]
+            name=source_object.name,  # type: ignore[attr-defined]
+        )
+        self.add_output_dataset(
+            namespace="gs://" + destination_bucket.name,  # type: ignore[union-attr]
+            name=destination_object.name,  # type: ignore[union-attr]
+        )
+
     def rewrite(
         self,
         source_bucket: str,

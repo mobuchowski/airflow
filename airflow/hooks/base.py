@@ -23,6 +23,7 @@ import warnings
 from typing import TYPE_CHECKING, Any
 
 from airflow.exceptions import RemovedInAirflow3Warning
+from airflow.lineage.hook import get_hook_lineage_collector
 from airflow.typing_compat import Protocol
 from airflow.utils.log.logging_mixin import LoggingMixin
 
@@ -95,6 +96,18 @@ class BaseHook(LoggingMixin):
     @classmethod
     def get_ui_field_behaviour(cls) -> dict[str, Any]:
         return {}
+
+    @classmethod
+    def add_input_dataset(cls, name: str, namespace: str):
+        from openlineage.client.run import Dataset as OpenLineageDataset
+
+        get_hook_lineage_collector().add_input(OpenLineageDataset(namespace=namespace, name=name))
+
+    @classmethod
+    def add_output_dataset(cls, name: str, namespace: str):
+        from openlineage.client.run import Dataset as OpenLineageDataset
+
+        get_hook_lineage_collector().add_output(OpenLineageDataset(namespace=namespace, name=name))
 
 
 class DiscoverableHook(Protocol):
