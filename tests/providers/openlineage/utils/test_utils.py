@@ -32,6 +32,7 @@ from airflow.operators.empty import EmptyOperator
 from airflow.operators.python import PythonOperator
 from airflow.providers.openlineage.plugins.facets import AirflowDagRunFacet, AirflowJobFacet
 from airflow.providers.openlineage.utils.utils import (
+    _get_immediate_task_descendants,
     _get_parsed_dag_tree,
     _get_task_groups_details,
     _get_tasks_details,
@@ -474,6 +475,48 @@ def test_get_dag_tree_large_dag():
 
     assert len(result) == 1
     assert dfs_depth(result, 901)
+
+
+def test_get_dag_tree_very_combined_dag_tree():
+    with DAG("aaa_repro", schedule=None) as dag:
+        start = EmptyOperator(task_id="start")
+        end = EmptyOperator(task_id="end")
+
+        a = []
+        for i in range(100):
+            prev = start
+            for j in range(3):
+                x = EmptyOperator(task_id=f"a_{i}_{j}")
+                prev >> x
+                prev = x
+            a.append(prev)
+
+        b = []
+        for i in range(100):
+            prev = EmptyOperator(task_id=f"b_{i}_0")
+            b.append(prev)
+            for j in range(3):
+                x = EmptyOperator(task_id=f"b_{i}_{j+1}")
+                prev >> x
+                prev = x
+            prev >> end
+
+        for x in a:
+            for y in b:
+                x >> y
+
+    result = _get_immediate_task_descendants(dag)
+
+    print(result)
+
+    def connection_count(d: dict) -> int:
+        connections = 0
+        for v in d.values():
+            if isinstance(v, list):
+                connections += len(v)
+        return connections
+
+    assert connection_count(result) == 10700
 
 
 def test_get_dag_tree_empty_dag():

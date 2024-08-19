@@ -476,6 +476,13 @@ def _get_parsed_dag_tree(dag: DAG) -> dict:
     return task_dict
 
 
+def _get_immediate_task_descendants(dag: DAG) -> dict:
+    return {
+        task.task_id: sorted(t for t in task.downstream_task_ids)
+        for task in sorted(dag.tasks, key=lambda x: x.task_id)
+    }
+
+
 def _get_tasks_details(dag: DAG) -> dict:
     tasks = {
         single_task.task_id: {
