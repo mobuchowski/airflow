@@ -1128,7 +1128,7 @@ class TestSqlBranch:
         dr = self.dag.create_dagrun(
             run_id="manual__",
             start_date=timezone.utcnow(),
-            execution_date=DEFAULT_DATE,
+            logical_date=DEFAULT_DATE,
             state=State.RUNNING,
             data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             **triggered_by_kwargs,
@@ -1171,7 +1171,7 @@ class TestSqlBranch:
         dr = self.dag.create_dagrun(
             run_id="manual__",
             start_date=timezone.utcnow(),
-            execution_date=DEFAULT_DATE,
+            logical_date=DEFAULT_DATE,
             state=State.RUNNING,
             data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             **triggered_by_kwargs,
@@ -1215,7 +1215,7 @@ class TestSqlBranch:
         dr = self.dag.create_dagrun(
             run_id="manual__",
             start_date=timezone.utcnow(),
-            execution_date=DEFAULT_DATE,
+            logical_date=DEFAULT_DATE,
             state=State.RUNNING,
             data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             **triggered_by_kwargs,
@@ -1260,7 +1260,7 @@ class TestSqlBranch:
         dr = self.dag.create_dagrun(
             run_id="manual__",
             start_date=timezone.utcnow(),
-            execution_date=DEFAULT_DATE,
+            logical_date=DEFAULT_DATE,
             state=State.RUNNING,
             data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             **triggered_by_kwargs,
@@ -1302,7 +1302,7 @@ class TestSqlBranch:
         self.dag.create_dagrun(
             run_id="manual__",
             start_date=timezone.utcnow(),
-            execution_date=DEFAULT_DATE,
+            logical_date=DEFAULT_DATE,
             state=State.RUNNING,
             data_interval=(DEFAULT_DATE, DEFAULT_DATE),
             **triggered_by_kwargs,

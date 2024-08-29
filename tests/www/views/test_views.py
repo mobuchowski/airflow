@@ -322,6 +322,7 @@ def test_mark_task_instance_state(test_app):
     """
     from airflow.models.dag import DAG
     from airflow.models.dagbag import DagBag
+    from airflow.models.dagrun import DagRun
     from airflow.models.taskinstance import TaskInstance
     from airflow.operators.empty import EmptyOperator
     from airflow.utils.session import create_session
@@ -345,7 +346,7 @@ def test_mark_task_instance_state(test_app):
     triggered_by_kwargs = {"triggered_by": DagRunTriggeredByType.TEST} if AIRFLOW_V_3_0_PLUS else {}
     dagrun = dag.create_dagrun(
         start_date=start_date,
-        execution_date=start_date,
+        logical_date=start_date,
         data_interval=(start_date, start_date),
         state=State.FAILED,
         run_type=DagRunType.SCHEDULED,
@@ -358,7 +359,7 @@ def test_mark_task_instance_state(test_app):
             .filter(
                 TaskInstance.dag_id == dag.dag_id,
                 TaskInstance.task_id == task.task_id,
-                TaskInstance.execution_date == start_date,
+                DagRun.logical_date == start_date,
             )
             .one()
         )
@@ -415,6 +416,7 @@ def test_mark_task_group_state(test_app):
     """
     from airflow.models.dag import DAG
     from airflow.models.dagbag import DagBag
+    from airflow.models.dagrun import DagRun
     from airflow.models.taskinstance import TaskInstance
     from airflow.operators.empty import EmptyOperator
     from airflow.utils.session import create_session
@@ -447,7 +449,7 @@ def test_mark_task_group_state(test_app):
     triggered_by_kwargs = {"triggered_by": DagRunTriggeredByType.TEST} if AIRFLOW_V_3_0_PLUS else {}
     dagrun = dag.create_dagrun(
         start_date=start_date,
-        execution_date=start_date,
+        logical_date=start_date,
         data_interval=(start_date, start_date),
         state=State.FAILED,
         run_type=DagRunType.SCHEDULED,
@@ -460,7 +462,7 @@ def test_mark_task_group_state(test_app):
             .filter(
                 TaskInstance.dag_id == dag.dag_id,
                 TaskInstance.task_id == task.task_id,
-                TaskInstance.execution_date == start_date,
+                DagRun.logical_date == start_date,
             )
             .one()
         )

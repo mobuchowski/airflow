@@ -83,7 +83,7 @@ class TestGetLog:
         dr = dag_maker.create_dagrun(
             run_id=self.RUN_ID,
             run_type=DagRunType.SCHEDULED,
-            execution_date=timezone.parse(self.default_time),
+            logical_date=timezone.parse(self.default_time),
             start_date=timezone.parse(self.default_time),
         )
 
@@ -97,7 +97,7 @@ class TestGetLog:
         dr2 = dag_maker.create_dagrun(
             run_id=self.RUN_ID,
             run_type=DagRunType.SCHEDULED,
-            execution_date=timezone.parse(self.default_time),
+            logical_date=timezone.parse(self.default_time),
             start_date=timezone.parse(self.default_time),
         )
         configured_app.dag_bag.bag_dag(dummy_dag)
