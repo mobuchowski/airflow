@@ -159,7 +159,7 @@ class TestSmtpNotifier:
             EmptyOperator(task_id="task1")
         context = {
             "dag": dag,
-            "slas": [SlaMiss(task_id="op", dag_id=dag.dag_id, execution_date=timezone.datetime(2018, 1, 1))],
+            "slas": [SlaMiss(task_id="op", dag_id=dag.dag_id, logical_date=timezone.datetime(2018, 1, 1))],
             "task_list": [],
             "blocking_task_list": [],
             "blocking_tis": [],
