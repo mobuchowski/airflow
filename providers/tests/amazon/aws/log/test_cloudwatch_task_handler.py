@@ -26,6 +26,7 @@ from unittest.mock import ANY, Mock, call
 import boto3
 import pytest
 from moto import mock_aws
+from tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
 from tests_common.test_utils.config import conf_vars
 from watchtower import CloudWatchLogHandler
 
@@ -36,8 +37,6 @@ from airflow.providers.amazon.aws.log.cloudwatch_task_handler import CloudwatchT
 from airflow.providers.amazon.aws.utils import datetime_to_epoch_utc_ms
 from airflow.utils.state import State
 from airflow.utils.timezone import datetime
-
-from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
 
 
 def get_time_str(time_in_milliseconds):

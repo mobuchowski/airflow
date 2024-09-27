@@ -29,10 +29,6 @@ from airflow.providers.alibaba.cloud.log.oss_task_handler import OSSTaskHandler
 from airflow.utils.state import TaskInstanceState
 from airflow.utils.timezone import datetime
 
-from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
-from dev.tests_common.test_utils.config import conf_vars
-from dev.tests_common.test_utils.db import clear_db_dags, clear_db_runs
-
 pytestmark = pytest.mark.db_test
 
 OSS_TASK_HANDLER_STRING = "airflow.providers.alibaba.cloud.log.oss_task_handler.{}"
@@ -52,20 +48,12 @@ class TestOSSTaskHandler:
 
     @pytest.fixture(autouse=True)
     def task_instance(self, create_task_instance, dag_maker):
-        if AIRFLOW_V_3_0_PLUS:
-            self.ti = ti = create_task_instance(
-                dag_id="dag_for_testing_oss_task_handler",
-                task_id="task_for_testing_oss_task_handler",
-                logical_date=datetime(2020, 1, 1),
-                state=TaskInstanceState.RUNNING,
-            )
-        else:
-            self.ti = ti = create_task_instance(
-                dag_id="dag_for_testing_oss_task_handler",
-                task_id="task_for_testing_oss_task_handler",
-                execution_date=datetime(2020, 1, 1),
-                state=TaskInstanceState.RUNNING,
-            )
+        self.ti = ti = create_task_instance(
+            dag_id="dag_for_testing_oss_task_handler",
+            task_id="task_for_testing_oss_task_handler",
+            logical_date=datetime(2020, 1, 1),
+            state=TaskInstanceState.RUNNING,
+        )
         ti.try_number = 1
         ti.raw = False
         dag_maker.session.merge(ti)

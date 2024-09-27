@@ -33,6 +33,7 @@ from airflow.providers.google.cloud.log.stackdriver_task_handler import Stackdri
 from airflow.utils import timezone
 from airflow.utils.state import TaskInstanceState
 
+
 def _create_list_log_entries_response_mock(messages, token):
     return ListLogEntriesResponse(
         entries=[LogEntry(json_payload={"message": message}) for message in messages], next_page_token=token
@@ -115,20 +116,12 @@ class TestStackdriverLoggingHandlerTask:
 
     @pytest.fixture(autouse=True)
     def task_instance(self, create_task_instance, clean_stackdriver_handlers):
-        if AIRFLOW_V_3_0_PLUS:
-            self.ti = create_task_instance(
-                dag_id=self.DAG_ID,
-                task_id=self.TASK_ID,
-                logical_date=timezone.datetime(2016, 1, 1),
-                state=TaskInstanceState.RUNNING,
-            )
-        else:
-            self.ti = create_task_instance(
-                dag_id=self.DAG_ID,
-                task_id=self.TASK_ID,
-                execution_date=timezone.datetime(2016, 1, 1),
-                state=TaskInstanceState.RUNNING,
-            )
+        self.ti = create_task_instance(
+            dag_id=self.DAG_ID,
+            task_id=self.TASK_ID,
+            logical_date=timezone.datetime(2016, 1, 1),
+            state=TaskInstanceState.RUNNING,
+        )
         self.ti.try_number = 1
         self.ti.raw = False
         yield

@@ -25,6 +25,7 @@ from unittest import mock
 
 import paramiko
 import pytest
+from tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
 from tests_common.test_utils.config import conf_vars
 
 from airflow.exceptions import AirflowException, AirflowProviderDeprecationWarning
@@ -36,9 +37,6 @@ from airflow.providers.ssh.hooks.ssh import SSHHook
 from airflow.providers.ssh.operators.ssh import SSHOperator
 from airflow.utils import timezone
 from airflow.utils.timezone import datetime
-
-from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
-from dev.tests_common.test_utils.config import conf_vars
 
 pytestmark = pytest.mark.db_test
 
@@ -344,7 +342,7 @@ class TestSFTPOperator:
                 operation=SFTPOperation.GET,
                 create_intermediate_dirs=True,
             )
-        from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
+        from tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
 
         if AIRFLOW_V_3_0_PLUS:
             for ti in dag_maker.create_dagrun(logical_date=timezone.utcnow()).task_instances:
