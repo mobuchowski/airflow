@@ -191,8 +191,8 @@ def _create_listener_and_task_instance() -> tuple[OpenLineageListener, TaskInsta
     def mock_dag_id(dag_id, logical_date):
         return f"{logical_date}.{dag_id}"
 
-    def mock_task_id(dag_id, task_id, try_number, execution_date):
-        return f"{execution_date}.{dag_id}.{task_id}.{try_number}"
+    def mock_task_id(dag_id, task_id, try_number, logical_date):
+        return f"{logical_date}.{dag_id}.{task_id}.{try_number}"
 
     listener = OpenLineageListener()
     listener.log = mock.Mock()
@@ -215,7 +215,7 @@ def _create_listener_and_task_instance() -> tuple[OpenLineageListener, TaskInsta
     task_instance.dag_run.run_id = "dag_run_run_id"
     task_instance.dag_run.data_interval_start = None
     task_instance.dag_run.data_interval_end = None
-    task_instance.dag_run.execution_date = "logical_date"
+    task_instance.dag_run.logical_date = "2020-01-01T01:01:01"
     task_instance.task = mock.Mock()
     task_instance.task.task_id = "task_id"
     task_instance.task.dag = mock.Mock()
@@ -316,6 +316,7 @@ def test_adapter_fail_task_is_called_with_proper_arguments(
         return f"{logical_date}.{dag_id}.{task_id}.{try_number}"
 
     listener, task_instance = _create_listener_and_task_instance()
+    task_instance.logical_date = "2020-01-01T01:01:01"
     mock_get_job_name.return_value = "job_name"
     mocked_adapter.build_dag_run_id.side_effect = mock_dag_id
     mocked_adapter.build_task_instance_run_id.side_effect = mock_task_id
@@ -373,8 +374,8 @@ def test_adapter_complete_task_is_called_with_proper_arguments(
     def mock_dag_id(dag_id, logical_date):
         return f"{logical_date}.{dag_id}"
 
-    def mock_task_id(dag_id, task_id, try_number, execution_date):
-        return f"{execution_date}.{dag_id}.{task_id}.{try_number}"
+    def mock_task_id(dag_id, task_id, try_number, logical_date):
+        return f"{logical_date}.{dag_id}.{task_id}.{try_number}"
 
     listener, task_instance = _create_listener_and_task_instance()
     mock_get_job_name.return_value = "job_name"
@@ -667,7 +668,7 @@ def test_listener_logs_failed_serialization():
         dag_id="",
         run_id="",
         end_date=event_time,
-        execution_date=callback_future,
+        logical_date=callback_future,
         dag_run_state=DagRunState.FAILED,
         task_ids=["task_id"],
         msg="",
