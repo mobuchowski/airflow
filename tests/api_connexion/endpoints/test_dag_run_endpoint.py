@@ -195,7 +195,6 @@ class TestGetDagRun(TestDagRunEndpoint):
             "end_date": None,
             "state": "running",
             "logical_date": self.default_time,
-            "execution_date": self.default_time,
             "external_trigger": True,
             "start_date": self.default_time,
             "conf": {},
@@ -249,7 +248,7 @@ class TestGetDagRun(TestDagRunEndpoint):
         "fields",
         [
             ["dag_run_id", "logical_date"],
-            ["dag_run_id", "state", "conf", "execution_date"],
+            ["dag_run_id", "state", "conf"],
         ],
     )
     def test_should_return_specified_fields(self, session, fields):
@@ -307,7 +306,6 @@ class TestGetDagRuns(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_1",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time,
             "logical_date": self.default_time,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -324,7 +322,6 @@ class TestGetDagRuns(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_2",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time_2,
             "logical_date": self.default_time_2,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -379,7 +376,6 @@ class TestGetDagRuns(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_2",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time_2,
             "logical_date": self.default_time_2,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -396,7 +392,6 @@ class TestGetDagRuns(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_1",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time,
             "logical_date": self.default_time,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -412,7 +407,7 @@ class TestGetDagRuns(TestDagRunEndpoint):
         result = session.query(DagRun).all()
         assert len(result) == 2
         response = self.client.get(
-            "api/v1/dags/TEST_DAG_ID/dagRuns?order_by=-execution_date",
+            "api/v1/dags/TEST_DAG_ID/dagRuns?order_by=-logical_date",
             environ_overrides={"REMOTE_USER": "test"},
         )
 
@@ -446,7 +441,7 @@ class TestGetDagRuns(TestDagRunEndpoint):
         "fields",
         [
             ["dag_run_id", "logical_date"],
-            ["dag_run_id", "state", "conf", "execution_date"],
+            ["dag_run_id", "state", "conf"],
         ],
     )
     def test_should_return_specified_fields(self, session, fields):
@@ -698,7 +693,6 @@ class TestGetDagRunBatch(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_1",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time,
             "logical_date": self.default_time,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -716,7 +710,6 @@ class TestGetDagRunBatch(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_2",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time_2,
             "logical_date": self.default_time_2,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -778,7 +771,6 @@ class TestGetDagRunBatch(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_2",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time_2,
             "logical_date": self.default_time_2,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -795,7 +787,6 @@ class TestGetDagRunBatch(TestDagRunEndpoint):
             "dag_run_id": "TEST_DAG_RUN_ID_1",
             "end_date": None,
             "state": "running",
-            "execution_date": self.default_time,
             "logical_date": self.default_time,
             "external_trigger": True,
             "start_date": self.default_time,
@@ -1087,7 +1078,7 @@ class TestGetDagRunBatchDateFilters(TestDagRunEndpoint):
 
 class TestPostDagRun(TestDagRunEndpoint):
     @time_machine.travel(timezone.utcnow(), tick=False)
-    @pytest.mark.parametrize("logical_date_field_name", ["execution_date", "logical_date"])
+    @pytest.mark.parametrize("logical_date_field_name", ["logical_date"])
     @pytest.mark.parametrize(
         "dag_run_id, logical_date, note, data_interval_start, data_interval_end",
         [
@@ -1162,7 +1153,6 @@ class TestPostDagRun(TestDagRunEndpoint):
             "dag_id": "TEST_DAG_ID",
             "dag_run_id": expected_dag_run_id,
             "end_date": None,
-            "execution_date": expected_logical_date,
             "logical_date": expected_logical_date,
             "external_trigger": True,
             "start_date": None,
@@ -1212,7 +1202,7 @@ class TestPostDagRun(TestDagRunEndpoint):
         )
         response = self.client.post(
             "api/v1/dags/TEST_DAG_ID/dagRuns",
-            json={"execution_date": "2020-11-10T08:25:56Z"},
+            json={"logical_date": "2020-11-10T08:25:56Z"},
             environ_overrides={"REMOTE_USER": "test"},
         )
         assert response.status_code == 400
@@ -1254,13 +1244,11 @@ class TestPostDagRun(TestDagRunEndpoint):
         } == response.json
 
     def test_should_response_200_for_matching_execution_date_logical_date(self):
-        execution_date = "2020-11-10T08:25:56.939143+00:00"
         logical_date = "2020-11-10T08:25:56.939143+00:00"
         self._create_dag("TEST_DAG_ID")
         response = self.client.post(
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
-                "execution_date": execution_date,
                 "logical_date": logical_date,
             },
             environ_overrides={"REMOTE_USER": "test"},
@@ -1272,7 +1260,6 @@ class TestPostDagRun(TestDagRunEndpoint):
             "dag_id": "TEST_DAG_ID",
             "dag_run_id": dag_run_id,
             "end_date": None,
-            "execution_date": execution_date,
             "logical_date": logical_date,
             "external_trigger": True,
             "start_date": None,
@@ -1287,19 +1274,6 @@ class TestPostDagRun(TestDagRunEndpoint):
 
         assert response.status_code == 200
         assert response.json == expected_response_json
-
-    def test_should_response_400_for_conflicting_execution_date_logical_date(self):
-        execution_date = "2020-11-10T08:25:56.939143+00:00"
-        logical_date = "2020-11-11T08:25:56.939143+00:00"
-        self._create_dag("TEST_DAG_ID")
-        response = self.client.post(
-            "api/v1/dags/TEST_DAG_ID/dagRuns",
-            json={"execution_date": execution_date, "logical_date": logical_date},
-            environ_overrides={"REMOTE_USER": "test"},
-        )
-        assert response.status_code == 400
-        assert response.json["title"] == "logical_date conflicts with execution_date"
-        assert response.json["detail"] == (f"'{logical_date}' != '{execution_date}'")
 
     @pytest.mark.parametrize(
         "data_interval_start, data_interval_end, expected",
@@ -1333,7 +1307,7 @@ class TestPostDagRun(TestDagRunEndpoint):
         response = self.client.post(
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
-                "execution_date": "2020-11-10T08:25:56.939143+00:00",
+                "logical_date": "2020-11-10T08:25:56.939143+00:00",
                 "data_interval_start": data_interval_start,
                 "data_interval_end": data_interval_end,
             },
@@ -1345,14 +1319,6 @@ class TestPostDagRun(TestDagRunEndpoint):
     @pytest.mark.parametrize(
         "data, expected",
         [
-            (
-                {"execution_date": "2020-11-10T08:25:56.939143"},
-                "'2020-11-10T08:25:56.939143' is not a 'date-time' - 'execution_date'",
-            ),
-            (
-                {"execution_date": "2020-11-10T08:25:56P"},
-                "'2020-11-10T08:25:56P' is not a 'date-time' - 'execution_date'",
-            ),
             (
                 {"logical_date": "2020-11-10T08:25:56.939143"},
                 "'2020-11-10T08:25:56.939143' is not a 'date-time' - 'logical_date'",
@@ -1377,7 +1343,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             (
                 {
                     "dag_run_id": "TEST_DAG_RUN",
-                    "execution_date": "2020-06-11T18:00:00+00:00",
+                    "logical_date": "2020-06-11T18:00:00+00:00",
                     "conf": "some string",
                 },
                 "'some string' is not of type 'object' - 'conf'",
@@ -1395,7 +1361,7 @@ class TestPostDagRun(TestDagRunEndpoint):
     def test_response_404(self):
         response = self.client.post(
             "api/v1/dags/TEST_DAG_ID/dagRuns",
-            json={"dag_run_id": "TEST_DAG_RUN", "execution_date": self.default_time},
+            json={"dag_run_id": "TEST_DAG_RUN", "logical_date": self.default_time},
             environ_overrides={"REMOTE_USER": "test"},
         )
         assert response.status_code == 404
@@ -1413,7 +1379,7 @@ class TestPostDagRun(TestDagRunEndpoint):
                 "api/v1/dags/TEST_DAG_ID/dagRuns",
                 {
                     "start_date": "2020-06-11T18:00:00+00:00",
-                    "execution_date": "2020-06-12T18:00:00+00:00",
+                    "logical_date": "2020-06-12T18:00:00+00:00",
                 },
                 {
                     "detail": "Property is read-only - 'start_date'",
@@ -1425,7 +1391,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             ),
             pytest.param(
                 "api/v1/dags/TEST_DAG_ID/dagRuns",
-                {"state": "failed", "execution_date": "2020-06-12T18:00:00+00:00"},
+                {"state": "failed", "logical_date": "2020-06-12T18:00:00+00:00"},
                 {
                     "detail": "Property is read-only - 'state'",
                     "status": 400,
@@ -1448,7 +1414,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
                 "dag_run_id": "TEST_DAG_RUN_ID_1",
-                "execution_date": self.default_time_3,
+                "logical_date": self.default_time_3,
             },
             environ_overrides={"REMOTE_USER": "test"},
         )
@@ -1468,7 +1434,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
                 "dag_run_id": "TEST_DAG_RUN_ID_6",
-                "execution_date": self.default_time,
+                "logical_date": self.default_time,
             },
             environ_overrides={"REMOTE_USER": "test"},
         )
@@ -1487,7 +1453,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
                 "dag_run_id": "TEST_DAG_RUN_ID_1",
-                "execution_date": self.default_time,
+                "logical_date": self.default_time,
             },
         )
 
@@ -1499,7 +1465,7 @@ class TestPostDagRun(TestDagRunEndpoint):
             "api/v1/dags/TEST_DAG_ID/dagRuns",
             json={
                 "dag_run_id": "TEST_DAG_RUN_ID_1",
-                "execution_date": self.default_time,
+                "logical_date": self.default_time,
             },
             environ_overrides={"REMOTE_USER": "test_no_permissions"},
         )
@@ -1540,9 +1506,8 @@ class TestPatchDagRunState(TestDagRunEndpoint):
             "dag_id": dag_id,
             "dag_run_id": dag_run_id,
             "end_date": dr.end_date.isoformat() if state != State.QUEUED else None,
-            "execution_date": dr.logical_date.isoformat(),
-            "external_trigger": False,
             "logical_date": dr.logical_date.isoformat(),
+            "external_trigger": False,
             "start_date": dr.start_date.isoformat() if state != State.QUEUED else None,
             "state": state,
             "data_interval_start": dr.data_interval_start.isoformat(),
@@ -1660,7 +1625,6 @@ class TestClearDagRun(TestDagRunEndpoint):
             "dag_id": dag_id,
             "dag_run_id": dag_run_id,
             "end_date": None,
-            "execution_date": dr.logical_date.isoformat(),
             "external_trigger": False,
             "logical_date": dr.logical_date.isoformat(),
             "start_date": None,
@@ -1727,7 +1691,7 @@ class TestClearDagRun(TestDagRunEndpoint):
                 {
                     "dag_id": dag_id,
                     "dag_run_id": dag_run_id,
-                    "execution_date": dr.logical_date.isoformat(),
+                    "logical_date": dr.logical_date.isoformat(),
                     "task_id": "task_id",
                 }
             ]
@@ -1852,7 +1816,7 @@ class TestGetDagRunDatasetTriggerEvents(TestDagRunEndpoint):
             dag_id="TEST_DAG_ID",
             run_id="TEST_DAG_RUN_ID",
             run_type=DagRunType.MANUAL,
-            execution_date=timezone.parse(self.default_time),
+            logical_date=timezone.parse(self.default_time),
             start_date=timezone.parse(self.default_time),
             external_trigger=True,
         )
@@ -1883,7 +1847,6 @@ class TestSetDagRunNote(TestDagRunEndpoint):
             "dag_id": dr.dag_id,
             "dag_run_id": dr.run_id,
             "end_date": dr.end_date.isoformat(),
-            "execution_date": self.default_time,
             "external_trigger": True,
             "logical_date": self.default_time,
             "start_date": self.default_time,
@@ -1913,9 +1876,8 @@ class TestSetDagRunNote(TestDagRunEndpoint):
             "dag_id": dr.dag_id,
             "dag_run_id": dr.run_id,
             "end_date": dr.end_date.isoformat(),
-            "execution_date": self.default_time,
-            "external_trigger": True,
             "logical_date": self.default_time,
+            "external_trigger": True,
             "start_date": self.default_time,
             "state": "success",
             "data_interval_start": None,
