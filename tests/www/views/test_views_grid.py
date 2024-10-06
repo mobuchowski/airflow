@@ -159,7 +159,7 @@ def test_no_runs(admin_client, dag_without_runs):
             "instances": [],
             "label": None,
         },
-        "ordering": ["data_interval_end", "execution_date"],
+        "ordering": ["data_interval_end", "logical_date"],
         "errors": [],
     }
 
@@ -230,7 +230,7 @@ def test_one_run(admin_client, dag_with_runs: list[DagRun], session):
                 "data_interval_end": "2016-01-02T00:00:00+00:00",
                 "data_interval_start": "2016-01-01T00:00:00+00:00",
                 "end_date": timezone.utcnow().isoformat(),
-                "execution_date": "2016-01-01T00:00:00+00:00",
+                "logical_date": "2016-01-01T00:00:00+00:00",
                 "external_trigger": False,
                 "last_scheduling_decision": None,
                 "note": None,
@@ -247,7 +247,7 @@ def test_one_run(admin_client, dag_with_runs: list[DagRun], session):
                 "data_interval_end": "2016-01-03T00:00:00+00:00",
                 "data_interval_start": "2016-01-02T00:00:00+00:00",
                 "end_date": None,
-                "execution_date": "2016-01-02T00:00:00+00:00",
+                "logical_date": "2016-01-02T00:00:00+00:00",
                 "external_trigger": False,
                 "last_scheduling_decision": None,
                 "note": None,
@@ -408,7 +408,7 @@ def test_one_run(admin_client, dag_with_runs: list[DagRun], session):
             "instances": [],
             "label": None,
         },
-        "ordering": ["data_interval_end", "execution_date"],
+        "ordering": ["data_interval_end", "logical_date"],
         "errors": [],
     }
 
@@ -462,7 +462,7 @@ def test_has_outlet_asset_flag(admin_client, dag_maker, session, app, monkeypatc
             "instances": [],
             "label": None,
         },
-        "ordering": ["data_interval_end", "execution_date"],
+        "ordering": ["data_interval_end", "logical_date"],
         "errors": [],
     }
 

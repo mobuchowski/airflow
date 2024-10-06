@@ -56,7 +56,7 @@ DAG_ID_REMOVED = "removed_dag_for_testing_log_view"
 TASK_ID = "task_for_testing_log_view"
 DEFAULT_DATE = timezone.datetime(2017, 9, 1)
 STR_DEFAULT_DATE = urllib.parse.quote(DEFAULT_DATE.strftime("%Y-%m-%dT%H:%M:%S.%f%z"))
-ENDPOINT = f"log?dag_id={DAG_ID}&task_id={TASK_ID}&execution_date={STR_DEFAULT_DATE}"
+ENDPOINT = f"log?dag_id={DAG_ID}&task_id={TASK_ID}&logical_date={STR_DEFAULT_DATE}"
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -256,7 +256,7 @@ def test_get_file_task_log(log_admin_client, tis, state, try_number, num_logs):
 def test_get_logs_with_metadata_as_download_file(log_admin_client, create_expected_log_file):
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=file"
     )
     try_number = 1
@@ -314,7 +314,7 @@ def test_get_logs_for_changed_filename_format_db(
     url = (
         f"get_logs_with_metadata?dag_id={dag_run_with_log_filename.dag_id}&"
         f"task_id={TASK_ID}&"
-        f"execution_date={urllib.parse.quote_plus(dag_run_with_log_filename.logical_date.isoformat())}&"
+        f"logical_date={urllib.parse.quote_plus(dag_run_with_log_filename.logical_date.isoformat())}&"
         f"try_number={try_number}&metadata={{}}&format=file"
     )
     response = log_admin_client.get(url)
@@ -342,7 +342,7 @@ def test_get_logs_for_changed_filename_format_db(
 def test_get_logs_with_metadata_as_download_large_file(_, log_admin_client):
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=file"
     )
     try_number = 1
@@ -364,7 +364,7 @@ def test_get_logs_with_metadata_as_download_large_file(_, log_admin_client):
 
 @pytest.mark.parametrize("metadata", ["null", "{}"])
 def test_get_logs_with_metadata(log_admin_client, metadata, create_expected_log_file):
-    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&execution_date={}&try_number={}&metadata={}"
+    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&logical_date={}&try_number={}&metadata={}"
     try_number = 1
     create_expected_log_file(try_number)
     response = log_admin_client.get(
@@ -389,7 +389,7 @@ def test_get_logs_with_metadata(log_admin_client, metadata, create_expected_log_
 def test_get_logs_with_invalid_metadata(log_admin_client):
     """Test invalid metadata JSON returns error message"""
     metadata = "invalid"
-    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&execution_date={}&try_number={}&metadata={}"
+    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&logical_date={}&try_number={}&metadata={}"
     response = log_admin_client.get(
         url_template.format(
             DAG_ID,
@@ -411,7 +411,7 @@ def test_get_logs_with_invalid_metadata(log_admin_client):
     return_value=(["airflow log line"], [{"end_of_log": True}]),
 )
 def test_get_logs_with_metadata_for_removed_dag(_, log_admin_client):
-    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&execution_date={}&try_number={}&metadata={}"
+    url_template = "get_logs_with_metadata?dag_id={}&task_id={}&logical_date={}&try_number={}&metadata={}"
     response = log_admin_client.get(
         url_template.format(
             DAG_ID_REMOVED,
@@ -434,7 +434,7 @@ def test_get_logs_with_metadata_for_removed_dag(_, log_admin_client):
 def test_get_logs_response_with_ti_equal_to_none(log_admin_client):
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=file"
     )
     try_number = 1
@@ -456,7 +456,7 @@ def test_get_logs_response_with_ti_equal_to_none(log_admin_client):
 def test_get_logs_with_json_response_format(log_admin_client, create_expected_log_file):
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=json"
     )
     try_number = 1
@@ -479,7 +479,7 @@ def test_get_logs_with_json_response_format(log_admin_client, create_expected_lo
 def test_get_logs_invalid_execution_data_format(log_admin_client):
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=file"
     )
     try_number = 1
@@ -505,7 +505,7 @@ def test_get_logs_for_handler_without_read_method(mock_reader, log_admin_client)
     type(mock_reader.return_value).supports_read = unittest.mock.PropertyMock(return_value=False)
     url_template = (
         "get_logs_with_metadata?dag_id={}&"
-        "task_id={}&execution_date={}&"
+        "task_id={}&logical_date={}&"
         "try_number={}&metadata={}&format=json"
     )
     try_number = 1
@@ -528,7 +528,7 @@ def test_get_logs_for_handler_without_read_method(mock_reader, log_admin_client)
 @pytest.mark.parametrize("task_id", ["inexistent", TASK_ID])
 def test_redirect_to_external_log_with_local_log_handler(log_admin_client, task_id):
     """Redirect to home if TI does not exist or if log handler is local"""
-    url_template = "redirect_to_external_log?dag_id={}&task_id={}&execution_date={}&try_number={}"
+    url_template = "redirect_to_external_log?dag_id={}&task_id={}&logical_date={}&try_number={}"
     try_number = 1
     url = url_template.format(
         DAG_ID,
@@ -562,7 +562,7 @@ class _ExternalHandler(ExternalLoggingMixin):
     return_value=_ExternalHandler(),
 )
 def test_redirect_to_external_log_with_external_log_handler(_, log_admin_client):
-    url_template = "redirect_to_external_log?dag_id={}&task_id={}&execution_date={}&try_number={}"
+    url_template = "redirect_to_external_log?dag_id={}&task_id={}&logical_date={}&try_number={}"
     try_number = 1
     url = url_template.format(
         DAG_ID,
