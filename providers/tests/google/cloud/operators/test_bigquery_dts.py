@@ -30,7 +30,6 @@ from airflow.providers.google.cloud.operators.bigquery_dts import (
     BigQueryDataTransferServiceStartTransferRunsOperator,
     BigQueryDeleteDataTransferConfigOperator,
 )
-
 PROJECT_ID = "id"
 
 
