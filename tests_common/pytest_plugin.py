@@ -31,6 +31,8 @@ from typing import TYPE_CHECKING
 import pytest
 import time_machine
 
+from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS
+
 if TYPE_CHECKING:
     from itsdangerous import URLSafeSerializer
 
@@ -844,13 +846,20 @@ def dag_maker(request):
 
             if "run_type" not in kwargs:
                 kwargs["run_type"] = DagRunType.from_run_id(kwargs["run_id"])
-            if kwargs.get("logical_date") is None:
-                if kwargs["run_type"] == DagRunType.MANUAL:
-                    kwargs["logical_date"] = self.start_date
-                else:
-                    kwargs["logical_date"] = dag.next_dagrun_info(None).logical_date
+            if AIRFLOW_V_3_0_PLUS:
+                if kwargs.get("logical_date") is None:
+                    if kwargs["run_type"] == DagRunType.MANUAL:
+                        kwargs["logical_date"] = self.start_date
+                    else:
+                        kwargs["logical_date"] = dag.next_dagrun_info(None).logical_date
+            else:
+                if kwargs.get("execution_date") is None:
+                    if kwargs["run_type"] == DagRunType.MANUAL:
+                        kwargs["execution_date"] = self.start_date
+                    else:
+                        kwargs["execution_date"] = dag.next_dagrun_info(None).logical_date
             if "data_interval" not in kwargs:
-                logical_date = timezone.coerce_datetime(kwargs["logical_date"])
+                logical_date = timezone.coerce_datetime(kwargs["logical_date"]) if AIRFLOW_V_3_0_PLUS else timezone.coerce_datetime(kwargs["execution_date"])
                 if kwargs["run_type"] == DagRunType.MANUAL:
                     data_interval = dag.timetable.infer_manual_data_interval(run_after=logical_date)
                 else:
@@ -872,6 +881,10 @@ def dag_maker(request):
                 raise ValueError(f"cannot create run after {dagrun}")
             return self.create_dagrun(
                 logical_date=next_info.logical_date,
+                data_interval=next_info.data_interval,
+                **kwargs,
+            ) if AIRFLOW_V_3_0_PLUS else self.create_dagrun(
+                execution_date=next_info.logical_date,
                 data_interval=next_info.data_interval,
                 **kwargs,
             )
@@ -1098,9 +1111,9 @@ def create_task_instance(dag_maker, create_dummy_dag):
                 trigger_rule=trigger_rule,
                 **op_kwargs,
             )
-
+        date_key = "logical_date" if AIRFLOW_V_3_0_PLUS else "execution_date"
         dagrun_kwargs = {
-            "logical_date": logical_date,
+            date_key: logical_date,
             "state": dagrun_state,
         }
         dagrun_kwargs.update({"triggered_by": DagRunTriggeredByType.TEST} if AIRFLOW_V_3_0_PLUS else {})
@@ -1135,10 +1148,11 @@ def create_serialized_task_instance_of_operator(dag_maker):
     ) -> TaskInstance:
         with dag_maker(dag_id=dag_id, serialized=True, session=session):
             operator_class(**operator_kwargs)
+        date_key = "logical_date" if AIRFLOW_V_3_0_PLUS else "execution_date"
         if logical_date is None:
             dagrun_kwargs = {}
         else:
-            dagrun_kwargs = {"logical_date": logical_date}
+            dagrun_kwargs = {date_key: logical_date}
         (ti,) = dag_maker.create_dagrun(**dagrun_kwargs).task_instances
         return ti
 
@@ -1157,10 +1171,11 @@ def create_task_instance_of_operator(dag_maker):
     ) -> TaskInstance:
         with dag_maker(dag_id=dag_id, session=session, serialized=True):
             operator_class(**operator_kwargs)
+        date_key = "logical_date" if AIRFLOW_V_3_0_PLUS else "execution_date"
         if logical_date is None:
             dagrun_kwargs = {}
         else:
-            dagrun_kwargs = {"logical_date": logical_date}
+            dagrun_kwargs = {date_key: logical_date}
         (ti,) = dag_maker.create_dagrun(**dagrun_kwargs).task_instances
         return ti
 
