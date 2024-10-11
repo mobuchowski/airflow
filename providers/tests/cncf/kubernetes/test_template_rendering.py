@@ -29,6 +29,8 @@ from airflow.utils import timezone
 from airflow.utils.session import create_session
 from airflow.version import version
 
+from dev.tests_common.test_utils.compat import AIRFLOW_V_3_0_PLUS, BashOperator
+
 pytestmark = [pytest.mark.db_test, pytest.mark.skip_if_database_isolation_mode]
 
 DEFAULT_DATE = timezone.datetime(2021, 9, 9)
@@ -37,12 +39,20 @@ DEFAULT_DATE = timezone.datetime(2021, 9, 9)
 @mock.patch.dict(os.environ, {"AIRFLOW_IS_K8S_EXECUTOR_POD": "True"})
 @mock.patch("airflow.settings.pod_mutation_hook")
 def test_render_k8s_pod_yaml(pod_mutation_hook, create_task_instance):
-    ti = create_task_instance(
-        dag_id="test_render_k8s_pod_yaml",
-        run_id="test_run_id",
-        task_id="op1",
-        logical_date=DEFAULT_DATE,
-    )
+    if AIRFLOW_V_3_0_PLUS:
+        ti = create_task_instance(
+            dag_id="test_render_k8s_pod_yaml",
+            run_id="test_run_id",
+            task_id="op1",
+            logical_date=DEFAULT_DATE,
+        )
+    else:
+        ti = create_task_instance(
+            dag_id="test_render_k8s_pod_yaml",
+            run_id="test_run_id",
+            task_id="op1",
+            execution_date=DEFAULT_DATE,
+        )
 
     expected_pod_spec = {
         "metadata": {
