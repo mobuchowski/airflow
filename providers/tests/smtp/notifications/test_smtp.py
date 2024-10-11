@@ -34,6 +34,9 @@ from airflow.providers.smtp.notifications.smtp import (
 )
 from airflow.utils import timezone
 
+from dev.tests_common.test_utils.compat import AIRFLOW_V_2_10_PLUS, AIRFLOW_V_3_0_PLUS
+from dev.tests_common.test_utils.config import conf_vars
+
 pytestmark = pytest.mark.db_test
 
 SMTP_API_DEFAULT_CONN_ID = SmtpHook.default_conn_name
@@ -122,7 +125,12 @@ class TestSmtpNotifier:
 
     @mock.patch("airflow.providers.smtp.notifications.smtp.SmtpHook")
     def test_notifier_with_defaults(self, mock_smtphook_hook, create_task_instance):
-        ti = create_task_instance(dag_id="dag", task_id="op", logical_date=timezone.datetime(2018, 1, 1))
+        if AIRFLOW_V_3_0_PLUS:
+            ti = create_task_instance(dag_id="dag", task_id="op", logical_date=timezone.datetime(2018, 1, 1))
+        else:
+            ti = create_task_instance(
+                dag_id="dag", task_id="op", execution_date=timezone.datetime(2018, 1, 1)
+            )
         context = {"dag": ti.dag_run.dag, "ti": ti}
         notifier = SmtpNotifier(
             from_email=conf.get("smtp", "smtp_mail_from"),
@@ -179,7 +187,12 @@ class TestSmtpNotifier:
 
     @mock.patch("airflow.providers.smtp.notifications.smtp.SmtpHook")
     def test_notifier_with_nondefault_conf_vars(self, mock_smtphook_hook, create_task_instance):
-        ti = create_task_instance(dag_id="dag", task_id="op", logical_date=timezone.datetime(2018, 1, 1))
+        if AIRFLOW_V_3_0_PLUS:
+            ti = create_task_instance(dag_id="dag", task_id="op", logical_date=timezone.datetime(2018, 1, 1))
+        else:
+            ti = create_task_instance(
+                dag_id="dag", task_id="op", execution_date=timezone.datetime(2018, 1, 1)
+            )
         context = {"dag": ti.dag_run.dag, "ti": ti}
 
         with (
