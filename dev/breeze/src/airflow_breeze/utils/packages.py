@@ -49,7 +49,7 @@ from airflow_breeze.utils.publish_docs_helpers import (
 from airflow_breeze.utils.run_utils import run_command
 from airflow_breeze.utils.versions import get_version_tag, strip_leading_zeros_from_version
 
-MIN_AIRFLOW_VERSION = "2.8.0"
+MIN_AIRFLOW_VERSION = "2.7.0"
 HTTPS_REMOTE = "apache-https-for-providers"
 
 LONG_PROVIDERS_PREFIX = "apache-airflow-providers-"
@@ -240,6 +240,8 @@ def get_not_ready_provider_ids() -> list[str]:
 
 def get_provider_requirements(provider_id: str) -> list[str]:
     package_metadata = get_provider_packages_metadata().get(provider_id)
+    print(package_metadata)
+    print("dupa")
     return package_metadata["dependencies"] if package_metadata else []
 
 
@@ -448,12 +450,20 @@ def get_install_requirements(provider_id: str, version_suffix: str) -> str:
     :return: install requirements of the package
     """
     if provider_id in get_removed_provider_ids():
+        print("?//?\n")
         dependencies = get_provider_requirements(provider_id)
     else:
+        print("nonieno\n")
         dependencies = PROVIDER_DEPENDENCIES.get(provider_id)["deps"]
+    print("\n\n\n\n")
+    print(provider_id)
+    print(json.dumps(dependencies, indent=4))
+    print("\n\n\n\n")
     install_requires = [
         apply_version_suffix(clause, version_suffix).replace('"', '\\"') for clause in dependencies
     ]
+    print(install_requires)
+    print("????\n\n\n")
     return "".join(f'\n    "{ir}",' for ir in install_requires)
 
 
@@ -530,6 +540,7 @@ def get_min_airflow_version(provider_id: str) -> str:
     from packaging.version import Version as PackagingVersion
 
     provider_details = get_provider_details(provider_id=provider_id)
+    print(provider_details)
     min_airflow_version = MIN_AIRFLOW_VERSION
     for dependency in provider_details.dependencies:
         if dependency.startswith("apache-airflow>="):
@@ -539,6 +550,7 @@ def get_min_airflow_version(provider_id: str) -> str:
                 current_min_airflow_version = current_min_airflow_version.split(",")[0]
             if PackagingVersion(current_min_airflow_version) > PackagingVersion(MIN_AIRFLOW_VERSION):
                 min_airflow_version = current_min_airflow_version
+    print(min_airflow_version)
     return min_airflow_version
 
 
@@ -629,6 +641,7 @@ def get_provider_jinja_context(
             get_provider_requirements(provider_id), markdown=False
         ),
     }
+    print(json.dumps(context, sort_keys=True, indent=4))
     return context
 
 
