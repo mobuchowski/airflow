@@ -164,6 +164,10 @@ def should_skip_the_package(provider_id: str, version_suffix: str) -> tuple[bool
     marked for release in this wave. For "dev" suffixes, we always build all packages.
     A local version of an RC release will always be built.
     """
+
+    # mobuchowski: does not matter for genproviders
+    return False, version_suffix
+
     if version_suffix != "" and (
         not version_suffix.startswith("rc") or is_local_package_version(version_suffix)
     ):
