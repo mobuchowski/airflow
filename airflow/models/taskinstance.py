@@ -73,6 +73,7 @@ from sqlalchemy_utils import UUIDType
 
 from airflow import settings
 from airflow.assets.manager import asset_manager
+from airflow.compat.functools import cache
 from airflow.configuration import conf
 from airflow.exceptions import (
     AirflowException,

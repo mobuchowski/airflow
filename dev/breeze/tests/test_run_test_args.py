@@ -77,7 +77,7 @@ def test_irregular_provider_with_extra_ignore_should_be_valid_cmd(mock_run_comma
     _run_test(
         shell_params=ShellParams(test_group=GroupOfTests.PROVIDERS, test_type="Providers"),
         extra_pytest_args=(f"--ignore=providers/tests/{fake_provider_name}",),
-        python_version="3.9",
+        python_version="3.8",
         output=None,
         test_timeout=60,
         skip_docker_compose_down=True,
@@ -109,7 +109,7 @@ def test_primary_test_arg_is_excluded_by_extra_pytest_arg(mock_run_command):
             test_type=f"Providers[{test_provider},{test_provider_not_skipped}]",
         ),
         extra_pytest_args=(f"--ignore=providers/tests/{test_provider}",),
-        python_version="3.9",
+        python_version="3.8",
         output=None,
         test_timeout=60,
         skip_docker_compose_down=True,
@@ -142,7 +142,7 @@ def test_test_is_skipped_if_all_are_ignored(mock_run_command):
             test_group=GroupOfTests.PROVIDERS, test_type=f"Providers[{','.join(test_providers)}]"
         ),
         extra_pytest_args=tuple(f"--ignore=providers/tests/{provider}" for provider in test_providers),
-        python_version="3.9",
+        python_version="3.8",
         output=None,
         test_timeout=60,
         skip_docker_compose_down=True,

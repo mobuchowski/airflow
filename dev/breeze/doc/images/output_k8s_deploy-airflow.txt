@@ -1,1 +1,7 @@
+<<<<<<< HEAD
 5b0897a8784fd3ef29cf789e10507936
+||||||| parent of 12c0e337f7 (Support Py3.8)
+027d1bd159cdc426dd4a64051bf2dd8d
+=======
+640037e62b7ed467a7a8134046444da2
+>>>>>>> 12c0e337f7 (Support Py3.8)

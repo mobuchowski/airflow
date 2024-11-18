@@ -16,7 +16,7 @@
 # under the License.
 from __future__ import annotations
 
-from collections.abc import Iterable
+from typing import Iterable
 
 import pytest
 
@@ -499,8 +499,16 @@ def test_provider_jinja_context():
         "RELEASE_NO_LEADING_ZEROS": version,
         "VERSION_SUFFIX": ".rc1",
         "PROVIDER_DESCRIPTION": "Amazon integration (including `Amazon Web Services (AWS) <https://aws.amazon.com/>`__).\n",
+<<<<<<< HEAD
         "CHANGELOG_RELATIVE_PATH": "../../providers/src/airflow/providers/amazon",
         "SUPPORTED_PYTHON_VERSIONS": ["3.9", "3.10", "3.11", "3.12"],
+||||||| parent of 12c0e337f7 (Support Py3.8)
+        "CHANGELOG_RELATIVE_PATH": "../../airflow/providers/amazon",
+        "SUPPORTED_PYTHON_VERSIONS": ["3.9", "3.10", "3.11", "3.12"],
+=======
+        "CHANGELOG_RELATIVE_PATH": "../../airflow/providers/amazon",
+        "SUPPORTED_PYTHON_VERSIONS": ["3.8", "3.9", "3.10", "3.11", "3.12"],
+>>>>>>> 12c0e337f7 (Support Py3.8)
         "PLUGINS": [],
         "MIN_AIRFLOW_VERSION": "2.8.0",
         "PROVIDER_REMOVED": False,

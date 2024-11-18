@@ -21,7 +21,6 @@ import datetime
 import json
 import operator
 from collections.abc import Iterator
-from functools import cache
 
 import pendulum
 from flask_appbuilder.fieldwidgets import (
@@ -37,6 +36,7 @@ from wtforms import widgets
 from wtforms.fields import Field, IntegerField, PasswordField, SelectField, StringField, TextAreaField
 from wtforms.validators import InputRequired, Optional
 
+from airflow.compat.functools import cache
 from airflow.configuration import conf
 from airflow.providers_manager import ProvidersManager
 from airflow.utils.types import DagRunType

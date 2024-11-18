@@ -39,7 +39,7 @@ name = "apache-airflow"
 description = "Programmatically author, schedule and monitor data pipelines"
 readme = { file = "generated/PYPI_README.md", content-type = "text/markdown" }
 license-files.globs = ["LICENSE", "3rd-party-licenses/*.txt"]
-requires-python = "~=3.9,<3.13"
+requires-python = "~=3.8,<3.13"
 authors = [
     { name = "Apache Software Foundation", email = "dev@airflow.apache.org" },
 ]
@@ -55,6 +55,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -157,6 +158,43 @@ LinkedIn = "https://www.linkedin.com/company/apache-airflow/"
 Mastodon = "https://fosstodon.org/@airflow"
 Bluesky = "https://bsky.app/profile/apache-airflow.bsky.social"
 YouTube = "https://www.youtube.com/channel/UCSXwxpWZQ7XZ1WL3wqevChA/"
+
+[tool.hatch.envs.default]
+python = "3.8"
+platforms = ["linux", "macos"]
+description = "Default environment with Python 3.8 for maximum compatibility"
+features = []
+
+[tool.hatch.envs.airflow-38]
+python = "3.8"
+platforms = ["linux", "macos"]
+description = "Environment with Python 3.8. No devel installed."
+features = []
+
+[tool.hatch.envs.airflow-39]
+python = "3.9"
+platforms = ["linux", "macos"]
+description = "Environment with Python 3.9. No devel installed."
+features = []
+
+[tool.hatch.envs.airflow-310]
+python = "3.10"
+platforms = ["linux", "macos"]
+description = "Environment with Python 3.10. No devel installed."
+features = []
+
+[tool.hatch.envs.airflow-311]
+python = "3.11"
+platforms = ["linux", "macos"]
+description = "Environment with Python 3.11. No devel installed"
+features = []
+
+[tool.hatch.envs.airflow-312]
+python = "3.12"
+platforms = ["linux", "macos"]
+description = "Environment with Python 3.12. No devel installed"
+features = []
+
 
 [tool.hatch.version]
 path = "airflow/__init__.py"

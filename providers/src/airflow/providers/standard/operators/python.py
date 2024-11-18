@@ -28,13 +28,13 @@ import textwrap
 import types
 from abc import ABCMeta, abstractmethod
 from collections.abc import Collection, Container, Iterable, Mapping, Sequence
-from functools import cache
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Callable, NamedTuple, cast
 
 import lazy_object_proxy
 
+from airflow.compat.functools import cache
 from airflow.exceptions import (
     AirflowConfigException,
     AirflowException,

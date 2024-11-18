@@ -126,6 +126,13 @@ ALLOWABLE_TYPE_ANNOTATIONS = {
 }
 
 
+# The new unparse() output is much more readable; fallback to dump() otherwise.
+if hasattr(ast, "unparse"):
+    _reveal = ast.unparse  # type: ignore[attr-defined]
+else:
+    _reveal = ast.dump
+
+
 def _match_arguments(
     init_def: tuple[str, list[ast.AnnAssign]],
     deco_def: tuple[str, list[ast.arg]],

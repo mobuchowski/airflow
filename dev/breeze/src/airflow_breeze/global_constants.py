@@ -22,27 +22,8 @@ from __future__ import annotations
 
 import json
 import platform
-import sys
 from enum import Enum
-
-from airflow_breeze.utils.console import get_console
-
-try:
-    from functools import cache
-except ImportError:
-    get_console().print(
-        "\n[error]Breeze doesn't support Python version <=3.8\n\n"
-        "[warning]Use Python 3.9 and force reinstall breeze:"
-        ""
-        " either with uv: \n\n"
-        "     uv tool install --force --reinstall --editable ./dev/breeze\n\n"
-        ""
-        " or with pipx\n\n"
-        "     pipx install --force -e ./dev/breeze --python 3.9\n"
-        "\nTo find out more, visit [info]https://github.com/apache/airflow/"
-        "blob/main/dev/breeze/doc/01_installation.rst[/]\n"
-    )
-    sys.exit(1)
+from functools import lru_cache
 from pathlib import Path
 
 from airflow_breeze.utils.host_info_utils import Architecture
@@ -64,7 +45,7 @@ ANSWER = ""
 APACHE_AIRFLOW_GITHUB_REPOSITORY = "apache/airflow"
 
 # Checked before putting in build cache
-ALLOWED_PYTHON_MAJOR_MINOR_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
+ALLOWED_PYTHON_MAJOR_MINOR_VERSIONS = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 DEFAULT_PYTHON_MAJOR_MINOR_VERSION = ALLOWED_PYTHON_MAJOR_MINOR_VERSIONS[0]
 ALLOWED_ARCHITECTURES = [Architecture.X86_64, Architecture.ARM]
 # Database Backends used when starting Breeze. The "none" value means that the configuration is invalid.
@@ -222,12 +203,22 @@ REGULAR_DOC_PACKAGES = [
 ]
 
 
-@cache
+@lru_cache(maxsize=None)
+def all_selective_test_types() -> tuple[str, ...]:
+    return tuple(sorted(e.value for e in SelectiveUnitTestTypes))
+
+
+@lru_cache(maxsize=None)
 def all_selective_core_test_types() -> tuple[str, ...]:
     return tuple(sorted(e.value for e in SelectiveCoreTestType))
 
 
-@cache
+@lru_cache(maxsize=None)
+def all_selective_test_types_except_providers() -> tuple[str, ...]:
+    return tuple(sorted(e.value for e in SelectiveUnitTestTypes if e != SelectiveUnitTestTypes.PROVIDERS))
+
+
+@lru_cache(maxsize=None)
 def providers_test_type() -> tuple[str, ...]:
     return tuple(sorted(e.value for e in SelectiveProvidersTestType))
 
@@ -278,7 +269,7 @@ ALL_TEST_SUITES: dict[str, tuple[str, ...]] = {
 }
 
 
-@cache
+@lru_cache(maxsize=None)
 def all_helm_test_packages() -> list[str]:
     return sorted(
         [
@@ -297,7 +288,7 @@ ALLOWED_TEST_TYPE_CHOICES: dict[GroupOfTests, list[str]] = {
 }
 
 
-@cache
+@lru_cache
 def all_task_sdk_test_packages() -> list[str]:
     try:
         return sorted(
@@ -361,7 +352,7 @@ PRODUCTION_IMAGE = False
 # All python versions include all past python versions available in previous branches
 # Even if we remove them from the main version. This is needed to make sure we can cherry-pick
 # changes from main to the previous branch.
-ALL_PYTHON_MAJOR_MINOR_VERSIONS = ["3.9", "3.10", "3.11", "3.12"]
+ALL_PYTHON_MAJOR_MINOR_VERSIONS = ["3.8", "3.9", "3.10", "3.11", "3.12"]
 CURRENT_PYTHON_MAJOR_MINOR_VERSIONS = ALL_PYTHON_MAJOR_MINOR_VERSIONS
 CURRENT_POSTGRES_VERSIONS = ["13", "14", "15", "16", "17"]
 DEFAULT_POSTGRES_VERSION = CURRENT_POSTGRES_VERSIONS[0]
@@ -516,7 +507,7 @@ def get_airflow_version():
     return airflow_version
 
 
-@cache
+@lru_cache(maxsize=None)
 def get_airflow_extras():
     airflow_dockerfile = AIRFLOW_SOURCES_ROOT / "Dockerfile"
     with open(airflow_dockerfile) as dockerfile:
@@ -612,19 +603,19 @@ CHICKEN_EGG_PROVIDERS = " ".join(["standard amazon common.sql"])
 
 PROVIDERS_COMPATIBILITY_TESTS_MATRIX: list[dict[str, str | list[str]]] = [
     {
-        "python-version": "3.9",
+        "python-version": "3.8",
         "airflow-version": "2.8.4",
         "remove-providers": "cloudant fab edge",
         "run-tests": "true",
     },
     {
-        "python-version": "3.9",
+        "python-version": "3.8",
         "airflow-version": "2.9.3",
         "remove-providers": "cloudant fab edge",
         "run-tests": "true",
     },
     {
-        "python-version": "3.9",
+        "python-version": "3.8",
         "airflow-version": "2.10.3",
         "remove-providers": "cloudant fab",
         "run-tests": "true",
@@ -643,6 +634,6 @@ class GithubEvents(Enum):
     WORKFLOW_RUN = "workflow_run"
 
 
-@cache
+@lru_cache(maxsize=None)
 def github_events() -> list[str]:
     return [e.value for e in GithubEvents]

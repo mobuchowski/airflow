@@ -25,7 +25,6 @@ import itertools
 import logging
 import weakref
 from collections.abc import Collection, Iterable, Mapping
-from functools import cache
 from inspect import signature
 from textwrap import dedent
 from typing import TYPE_CHECKING, Any, NamedTuple, Union, cast
@@ -37,6 +36,7 @@ from pendulum.tz.timezone import FixedTimezone, Timezone
 
 from airflow import macros
 from airflow.callbacks.callback_requests import DagCallbackRequest, TaskCallbackRequest
+from airflow.compat.functools import cache
 from airflow.exceptions import AirflowException, SerializationError, TaskDeferred
 from airflow.jobs.job import Job
 from airflow.models import Trigger

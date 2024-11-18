@@ -19,13 +19,13 @@ from __future__ import annotations
 import logging
 import secrets
 import string
-from functools import cache
 from typing import TYPE_CHECKING
 
 import pendulum
 from kubernetes.client.rest import ApiException
 from slugify import slugify
 
+from airflow.compat.functools import cache
 from airflow.configuration import conf
 from airflow.providers.cncf.kubernetes.backcompat import get_logical_date_key
 

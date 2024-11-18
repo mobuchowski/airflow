@@ -32,7 +32,14 @@ if you never tested modules and if you do not know how to bypass version check o
 For testing, you can create your own virtual environment, or use the one that ``uv`` or ``pipx`` created
 for you if you already installed breeze following the recommended installation.
 
-Or you can change your directory to
+For local virtualenv, you can use ``pyenv`` or any other virtualenv wrapper. For example with ``pyenv``,
+you can use ``pyenv virtualenv 3.8.6 airflow-breeze`` to create virtualenv called ``airflow-breeze``
+with Python 3.8.6. Then you can use ``pyenv activate airflow-breeze`` to activate it and install breeze
+in editable mode with ``pip install -e ./dev/breeze``.
+
+For ``pipx`` virtualenv, you can use the virtualenv that ``pipx`` created for you. You can find the name
+where ``pipx`` keeps their venvs via ``pipx list`` command. Usually it is
+``${HOME}/.local/pipx/venvs/apache-airflow-breeze`` where ``$HOME`` is your home directory.
 
 The venv can be used for running breeze tests and for debugging breeze. While running tests should
 be usually "out-of-the-box" for most IDEs, once you configure ``./dev/breeze`` project to use the venv,
@@ -49,7 +56,7 @@ make sure to follow these steps:
   this will bypass the check we run in Breeze to see if there are new requirements to install for it
 
 See example configuration for PyCharm which has run/debug configuration for
-``breeze sbom generate-providers-requirements --provider-id sqlite --python 3.9``
+``breeze sbom generate-providers-requirements --provider-id sqlite --python 3.8``
 
 .. raw:: html
 

@@ -33,7 +33,7 @@ import warnings
 from bisect import insort_left
 from collections import defaultdict
 from collections.abc import Collection, Iterator, Mapping, MutableMapping, Sequence
-from functools import cache, cached_property
+from functools import cached_property
 from json import JSONDecodeError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -89,6 +89,7 @@ from airflow.api.common.mark_tasks import (
     set_state,
 )
 from airflow.auth.managers.models.resource_details import AccessView, DagAccessEntity, DagDetails
+from airflow.compat.functools import cache
 from airflow.configuration import AIRFLOW_CONFIG, conf
 from airflow.exceptions import (
     AirflowConfigException,
@@ -179,7 +180,7 @@ def sanitize_args(args: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in args.items() if not key.startswith("_")}
 
 
-# Following the release of https://github.com/python/cpython/issues/102153 in Python 3.9.17 on
+# Following the release of https://github.com/python/cpython/issues/102153 in Python 3.8.17 and 3.9.17 on
 # June 6, 2023, we are adding extra sanitization of the urls passed to get_safe_url method to make it works
 # the same way regardless if the user uses latest Python patchlevel versions or not. This also follows
 # a recommended solution by the Python core team.

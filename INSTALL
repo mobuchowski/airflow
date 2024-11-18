@@ -161,8 +161,74 @@ It's important to keep your hatch up to date. You can do this by running:
     uv tool upgrade hatch
 
 
-Using Hatch to build your packages
-----------------------------------
+┏━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Name        ┃ Type    ┃ Description                                                   ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ default     │ virtual │ Default environment with Python 3.8 for maximum compatibility │
+├─────────────┼─────────┼───────────────────────────────────────────────────────────────┤
+│ airflow-38  │ virtual │ Environment with Python 3.8. No devel installed.              │
+├─────────────┼─────────┼───────────────────────────────────────────────────────────────┤
+│ airflow-39  │ virtual │ Environment with Python 3.9. No devel installed.              │
+├─────────────┼─────────┼───────────────────────────────────────────────────────────────┤
+│ airflow-310 │ virtual │ Environment with Python 3.10. No devel installed.             │
+├─────────────┼─────────┼───────────────────────────────────────────────────────────────┤
+│ airflow-311 │ virtual │ Environment with Python 3.11. No devel installed              │
+├─────────────┼─────────┼───────────────────────────────────────────────────────────────┤
+│ airflow-312 │ virtual │ Environment with Python 3.12. No devel installed              │
+└─────────────┴─────────┴───────────────────────────────────────────────────────────────┘
+
+The default env (if you have not used one explicitly) is `default` and it is a Python 3.8
+virtualenv for maximum compatibility with `devel` extra installed - this devel extra contains the minimum set
+of dependencies and tools that should be used during unit testing of core Airflow and running all `airflow`
+CLI commands - without support for providers or databases.
+
+The other environments are just bare-bones Python virtualenvs with Airflow core requirements only,
+without any extras installed and without any tools. They are much faster to create than the default
+environment, and you can manually install either appropriate extras or tools that you need for
+testing or development.
+
+    hatch env create
+
+You can create specific environments by using them in create command:
+
+    hatch env create airflow-310
+
+You can install extras in the environment by running pip command:
+
+    hatch -e airflow-310 run -- pip install -e ".[devel,google]"
+
+And you can enter the environment by running a shell of your choice (for example, zsh) where you
+can run any commands
+
+    hatch -e airflow-310 shell
+
+Once you are in the environment (indicated usually by an updated prompt), you can just install
+the extra dependencies you need:
+
+    [~/airflow] [airflow-310] pip install -e ".[devel,google]"
+
+You can exit the environment by just exiting the shell.
+
+You can also see where Hatch created the virtualenvs and use it in your IDE or activate it manually:
+
+    hatch env find airflow-310
+
+You will get a path similar to the following:
+
+    /Users/jarek/Library/Application Support/hatch/env/virtual/apache-airflow/TReRdyYt/apache-airflow
+
+Then you will find `python` binary and `activate` script in the `bin` sub-folder of this directory, and
+you can configure your IDE to use this python virtualenv if you want to use that environment in your IDE.
+
+You can also set the default environment name by the HATCH_ENV environment variable.
+
+You can clean the environment by running the following:
+
+    hatch env prune
+
+More information about hatch can be found in https://hatch.pypa.io/1.9/environment/
+
+## Using Hatch to build your packages
 
 You can use Hatch to build installable packages from the Airflow sources. Such package will
 include all metadata configured in `pyproject.toml` and will be installable with ``pip`` and and any other
@@ -188,15 +254,15 @@ to avoid "works-for-me" syndrome, where you use different versions of dependenci
 that are used in main CI tests and by other contributors.
 
 There are different constraint files for different Python versions. For example, this command will install
-all basic devel requirements and requirements of Google provider as last successfully tested for Python 3.9:
+all basic devel requirements and requirements of Google provider as last successfully tested for Python 3.8:
 
     pip install -e ".[devel,google]"" \
-      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-3.9.txt"
+      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-3.8.txt"
 
 Using the 'constraints-no-providers' constraint files, you can upgrade Airflow without paying attention to the provider's dependencies. This allows you to keep installed provider dependencies and install the latest supported ones using pure Airflow core.
 
 pip install -e ".[devel]" \
-  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-no-providers-3.9.txt"
+  --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-no-providers-3.8.txt"
 
 Airflow extras
 ==============

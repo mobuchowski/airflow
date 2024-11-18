@@ -34,7 +34,7 @@ Required Software Packages
 Use system-level package managers like yum, apt-get for Linux, or
 Homebrew for macOS to install required software packages:
 
-* Python (One of: 3.9, 3.10, 3.11, 3.12)
+* Python (One of: 3.8, 3.9, 3.10, 3.11, 3.12)
 * MySQL 5.7+
 * libxml
 * helm (only for helm chart tests)
@@ -217,6 +217,109 @@ The full list of extras is available in `pyproject.toml <../pyproject.toml>`_ an
 Developing community providers in local virtualenv
 ..................................................
 
+Using Hatch
+-----------
+
+Airflow uses `hatch <https://hatch.pypa.io/>`_ as a build and development tool of choice. It is one of popular
+build tools and environment managers for Python, maintained by the Python Packaging Authority.
+It is an optional tool that is only really needed when you want to build packages from sources, but
+it is also very convenient to manage your Python versions and virtualenvs.
+
+Airflow project contains some pre-defined virtualenv definitions in ``pyproject.toml`` that can be
+easily used by hatch to create your local venvs. This is not necessary for you to develop and test
+Airflow, but it is a convenient way to manage your local Python versions and virtualenvs.
+
+Installing Hatch
+................
+
+You can install hatch using various other ways (including Gui installers).
+
+Example using ``pipx``:
+
+.. code:: bash
+
+    pipx install hatch
+
+We recommend using ``pipx`` as you can manage installed Python apps easily and later use it
+to upgrade ``hatch`` easily as needed with:
+
+.. code:: bash
+
+    pipx upgrade hatch
+
+Using Hatch to manage your Python versions
+..........................................
+
+You can also use hatch to install and manage airflow virtualenvs and development
+environments. For example, you can install Python 3.10 with this command:
+
+.. code:: bash
+
+    hatch python install 3.10
+
+or install all Python versions that are used in Airflow:
+
+.. code:: bash
+
+    hatch python install all
+
+Manage your virtualenvs with Hatch
+..................................
+
+Airflow has some pre-defined virtualenvs that you can use to develop and test airflow.
+You can see the list of available envs with:
+
+.. code:: bash
+
+    hatch env show
+
+This is what it shows currently:
+
++-------------+---------+---------------------------------------------------------------+
+| Name        | Type    | Description                                                   |
++=============+=========+===============================================================+
+| default     | virtual | Default environment with Python 3.8 for maximum compatibility |
++-------------+---------+---------------------------------------------------------------+
+| airflow-38  | virtual | Environment with Python 3.8. No devel installed.              |
++-------------+---------+---------------------------------------------------------------+
+| airflow-39  | virtual | Environment with Python 3.9. No devel installed.              |
++-------------+---------+---------------------------------------------------------------+
+| airflow-310 | virtual | Environment with Python 3.10. No devel installed.             |
++-------------+---------+---------------------------------------------------------------+
+| airflow-311 | virtual | Environment with Python 3.11. No devel installed              |
++-------------+---------+---------------------------------------------------------------+
+| airflow-312 | virtual | Environment with Python 3.12. No devel installed              |
++-------------+---------+---------------------------------------------------------------+
+
+The default env (if you have not used one explicitly) is ``default`` and it is a Python 3.8
+virtualenv for maximum compatibility. You can install devel set of dependencies with it
+by running:
+
+.. code:: bash
+
+    pip install -e ".[devel]"
+
+After entering the environment.
+
+The other environments are just bare-bones Python virtualenvs with Airflow core requirements only,
+without any extras installed and without any tools. They are much faster to create than the default
+environment, and you can manually install either appropriate extras or directly tools that you need for
+testing or development.
+
+.. code:: bash
+
+    hatch env create
+
+You can create specific environment by using them in create command:
+
+.. code:: bash
+
+    hatch env create airflow-310
+
+You can install extras in the environment by running pip command:
+
+.. code:: bash
+
 While the above installation is good enough to work on Airflow code, in order to develop
 providers, you also need to install them in the virtualenv you work on (after installing
 the extras in airflow, that correspond to the provider you want to develop).
@@ -324,12 +427,12 @@ to avoid "works-for-me" syndrome, where you use different version of dependencie
 that are used in main, CI tests and by other contributors.
 
 There are different constraint files for different python versions. For example this command will install
-all basic devel requirements and requirements of google provider as last successfully tested for Python 3.9:
+all basic devel requirements and requirements of google provider as last successfully tested for Python 3.8:
 
 .. code:: bash
 
     pip install -e ".[devel,google]" \
-      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-source-providers-3.9.txt"
+      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-source-providers-3.8.txt"
 
 Or with ``uv``:
 
@@ -354,7 +457,7 @@ and install to latest supported ones by pure airflow core.
 .. code:: bash
 
     pip install -e ".[devel]" \
-      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-no-providers-3.9.txt"
+      --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-main/constraints-no-providers-3.8.txt"
 
 These are examples of the development options available with the local virtualenv in your IDE:
 

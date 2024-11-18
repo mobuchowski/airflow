@@ -23,7 +23,7 @@ import logging
 import sys
 from collections.abc import Generator, Iterable, Iterator
 from enum import Enum
-from functools import cache, cached_property
+from functools import cached_property
 from re import Pattern
 from typing import (
     TYPE_CHECKING,
@@ -37,6 +37,7 @@ from typing import (
 import re2
 
 from airflow import settings
+from airflow.compat.functools import cache
 
 if TYPE_CHECKING:
     from kubernetes.client import V1EnvVar
