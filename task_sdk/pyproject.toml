@@ -132,5 +132,5 @@ use-standard-collections=true # list[] not List[]
 use-subclass-enum=true # enum, not union of Literals
 use-union-operator=true # 3.9+annotations, not `Union[]`
 
-url = 'http://0.0.0.0:9091/execution/openapi.json'
+url = 'http://0.0.0.0:29091/execution/openapi.json'
 output = 'src/airflow/sdk/api/datamodels/_generated.py'

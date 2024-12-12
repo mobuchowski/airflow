@@ -271,7 +271,7 @@ def test_adapter_start_task_is_called_with_proper_arguments(
     mock_get_airflow_run_facet.return_value = {"airflow_run_facet": 3}
     mock_disabled.return_value = False
 
-    listener.on_task_instance_running(None, task_instance, None)
+    listener.on_task_instance_running(None, task_instance)
     listener.adapter.start_task.assert_called_once_with(
         run_id="2020-01-01T01:01:01.dag_id.task_id.1.-1",
         job_name="job_name",
@@ -326,7 +326,7 @@ def test_adapter_fail_task_is_called_with_proper_arguments(
     expected_err_kwargs = {"error": err if AIRFLOW_V_2_10_PLUS else None}
 
     listener.on_task_instance_failed(
-        previous_state=None, task_instance=task_instance, session=None, **on_task_failed_listener_kwargs
+        previous_state=None, task_instance=task_instance, **on_task_failed_listener_kwargs
     )
     listener.adapter.fail_task.assert_called_once_with(
         end_time="2023-01-03T13:01:01",
@@ -372,7 +372,7 @@ def test_adapter_complete_task_is_called_with_proper_arguments(
     mock_get_airflow_run_facet.return_value = {"airflow": {"task": "..."}}
     mock_disabled.return_value = False
 
-    listener.on_task_instance_success(None, task_instance, None)
+    listener.on_task_instance_success(None, task_instance)
     # This run_id will be different as we did NOT simulate increase of the try_number attribute,
     # which happens in Airflow < 2.10.
     calls = listener.adapter.complete_task.call_args_list
@@ -401,7 +401,7 @@ def test_on_task_instance_running_correctly_calls_openlineage_adapter_run_id_met
     parameters derived from the task instance.
     """
     listener, task_instance = _create_listener_and_task_instance()
-    listener.on_task_instance_running(None, task_instance, None)
+    listener.on_task_instance_running(None, task_instance)
     listener.adapter.build_task_instance_run_id.assert_called_once_with(
         dag_id="dag_id",
         task_id="task_id",
@@ -423,7 +423,7 @@ def test_on_task_instance_failed_correctly_calls_openlineage_adapter_run_id_meth
     on_task_failed_kwargs = {"error": ValueError("test")} if AIRFLOW_V_2_10_PLUS else {}
 
     listener.on_task_instance_failed(
-        previous_state=None, task_instance=task_instance, session=None, **on_task_failed_kwargs
+        previous_state=None, task_instance=task_instance, **on_task_failed_kwargs
     )
     listener.adapter.build_task_instance_run_id.assert_called_once_with(
         dag_id="dag_id",
@@ -443,7 +443,7 @@ def test_on_task_instance_success_correctly_calls_openlineage_adapter_run_id_met
     parameters derived from the task instance.
     """
     listener, task_instance = _create_listener_and_task_instance()
-    listener.on_task_instance_success(None, task_instance, None)
+    listener.on_task_instance_success(None, task_instance)
     listener.adapter.build_task_instance_run_id.assert_called_once_with(
         dag_id="dag_id",
         task_id="task_id",
@@ -527,7 +527,7 @@ def test_listener_on_task_instance_running_do_not_call_adapter_when_disabled_ope
     mock_get_airflow_run_facet.return_value = {"airflow_run_facet": 3}
     mock_disabled.return_value = True
 
-    listener.on_task_instance_running(None, task_instance, None)
+    listener.on_task_instance_running(None, task_instance)
     mock_disabled.assert_called_once_with(task_instance.task)
     listener.adapter.build_dag_run_id.assert_not_called()
     listener.adapter.build_task_instance_run_id.assert_not_called()
@@ -548,7 +548,7 @@ def test_listener_on_task_instance_failed_do_not_call_adapter_when_disabled_oper
     on_task_failed_kwargs = {"error": ValueError("test")} if AIRFLOW_V_2_10_PLUS else {}
 
     listener.on_task_instance_failed(
-        previous_state=None, task_instance=task_instance, session=None, **on_task_failed_kwargs
+        previous_state=None, task_instance=task_instance, **on_task_failed_kwargs
     )
     mock_disabled.assert_called_once_with(task_instance.task)
     listener.adapter.build_dag_run_id.assert_not_called()
@@ -567,7 +567,7 @@ def test_listener_on_task_instance_success_do_not_call_adapter_when_disabled_ope
     mock_get_user_provided_run_facets.return_value = {"custom_facet": 2}
     mock_disabled.return_value = True
 
-    listener.on_task_instance_success(None, task_instance, None)
+    listener.on_task_instance_success(None, task_instance)
     mock_disabled.assert_called_once_with(task_instance.task)
     listener.adapter.build_dag_run_id.assert_not_called()
     listener.adapter.build_task_instance_run_id.assert_not_called()
@@ -755,24 +755,22 @@ class TestOpenLineageSelectiveEnable:
             assert expected_dag_call_count == listener._executor.submit.call_count
 
             # run TaskInstance-related hooks for lineage enabled task
-            listener.on_task_instance_running(None, self.task_instance_1, None)
-            listener.on_task_instance_success(None, self.task_instance_1, None)
+            listener.on_task_instance_running(None, self.task_instance_1)
+            listener.on_task_instance_success(None, self.task_instance_1)
             listener.on_task_instance_failed(
                 previous_state=None,
                 task_instance=self.task_instance_1,
-                session=None,
                 **on_task_failed_kwargs,
             )
 
             assert expected_task_call_count == listener.extractor_manager.extract_metadata.call_count
 
             # run TaskInstance-related hooks for lineage disabled task
-            listener.on_task_instance_running(None, self.task_instance_2, None)
-            listener.on_task_instance_success(None, self.task_instance_2, None)
+            listener.on_task_instance_running(None, self.task_instance_2)
+            listener.on_task_instance_success(None, self.task_instance_2)
             listener.on_task_instance_failed(
                 previous_state=None,
                 task_instance=self.task_instance_2,
-                session=None,
                 **on_task_failed_kwargs,
             )
 
@@ -817,10 +815,10 @@ class TestOpenLineageSelectiveEnable:
             listener.on_dag_run_success(self.dagrun, msg="test success")
 
             # run TaskInstance-related hooks for lineage enabled task
-            listener.on_task_instance_running(None, self.task_instance_1, None)
-            listener.on_task_instance_success(None, self.task_instance_1, None)
+            listener.on_task_instance_running(None, self.task_instance_1)
+            listener.on_task_instance_success(None, self.task_instance_1)
             listener.on_task_instance_failed(
-                previous_state=None, task_instance=self.task_instance_1, session=None, **on_task_failed_kwargs
+                previous_state=None, task_instance=self.task_instance_1, **on_task_failed_kwargs
             )
 
         assert expected_call_count == listener._executor.submit.call_count
