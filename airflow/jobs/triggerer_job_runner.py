@@ -35,7 +35,7 @@ from sqlalchemy import func, select
 from airflow.configuration import conf
 from airflow.jobs.base_job_runner import BaseJobRunner
 from airflow.jobs.job import perform_heartbeat
-from airflow.models.trigger import Trigger
+from airflow.models.trigger import Trigger, WorkloadType
 from airflow.stats import Stats
 from airflow.traces.tracer import Trace, add_span
 from airflow.triggers.base import TriggerEvent
@@ -380,6 +380,7 @@ class TriggererJobRunner(BaseJobRunner, LoggingMixin):
                 if span.is_recording():
                     span.add_event(name="handle_failed_triggers")
                 self.handle_failed_triggers()
+                self.handle_finished_listeners()
                 if span.is_recording():
                     span.add_event(name="perform_heartbeat")
                 perform_heartbeat(
@@ -423,6 +424,21 @@ class TriggererJobRunner(BaseJobRunner, LoggingMixin):
             Trigger.submit_failure(trigger_id=trigger_id, exc=saved_exc)
             # Emit stat event
             Stats.incr("triggers.failed")
+
+    @add_span
+    def handle_finished_listeners(self):
+        """
+        Handle "failed" triggers. - ones that errored or exited before they sent an event.
+
+        Task Instances that depend on them need failing.
+        """
+        while self.trigger_runner.finished_listeners:
+            # Tell the model to fail this trigger's deps
+            trigger_id = self.trigger_runner.finished_listeners.popleft()
+            Trigger.clean_finished_listener(id=trigger_id)
+            # Emit stat event
+            Stats.incr("listeners.finished")
+
 
     @add_span
     def emit_metrics(self):
@@ -492,6 +508,7 @@ class TriggerRunner(threading.Thread, LoggingMixin):
         self.to_cancel = deque()
         self.events = deque()
         self.failed_triggers = deque()
+        self.finished_listeners = deque()
         self.job_id = None
 
     def run(self):
@@ -528,7 +545,7 @@ class TriggerRunner(threading.Thread, LoggingMixin):
     async def create_triggers(self):
         """Drain the to_create queue and create all new triggers that have been requested in the DB."""
         while self.to_create:
-            trigger_id, trigger_instance = self.to_create.popleft()
+            kind, trigger_id, trigger_instance = self.to_create.popleft()
             if trigger_id not in self.triggers:
                 ti: TaskInstance | None = trigger_instance.task_instance
                 trigger_name = (
@@ -536,10 +553,18 @@ class TriggerRunner(threading.Thread, LoggingMixin):
                     if ti
                     else f"ID {trigger_id}"
                 )
+                if kind == WorkloadType.TRIGGER:
+                    task = self.run_trigger(trigger_id, trigger_instance)
+                elif kind == WorkloadType.LISTENER:
+                    task = self.run_listener(trigger_id, trigger_instance)
+                elif kind == WorkloadType.CALLBACK:
+                    task = self.run_listener(trigger_id, trigger_instance)
+
                 self.triggers[trigger_id] = {
-                    "task": asyncio.create_task(self.run_trigger(trigger_id, trigger_instance)),
+                    "task": asyncio.create_task(task),
                     "name": trigger_name,
                     "events": 0,
+                    "kind": kind,
                 }
             else:
                 self.log.warning("Trigger %s had insertion attempted twice", trigger_id)
@@ -588,12 +613,15 @@ class TriggerRunner(threading.Thread, LoggingMixin):
                         )
                 # See if this exited without sending an event, in which case
                 # any task instances depending on it need to be failed
-                if details["events"] == 0:
+                if details["events"] == 0 and details["kind"] == WorkloadType.TRIGGER:
                     self.log.error(
                         "Trigger %s exited without sending an event. Dependent tasks will be failed.",
                         details["name"],
                     )
                     self.failed_triggers.append((trigger_id, saved_exc))
+                elif details["kind"] == WorkloadType.LISTENER:
+                    self.finished_listeners.append(trigger_id)
+                self.log.info("Cleaned up trigger %s with id %s", details["name"], trigger_id)
                 del self.triggers[trigger_id]
             await asyncio.sleep(0)
 
@@ -625,7 +653,7 @@ class TriggerRunner(threading.Thread, LoggingMixin):
                 Stats.incr("triggers.blocked_main_thread")
 
     @staticmethod
-    def set_individual_trigger_logging(trigger):
+    def set_individual_trigger_logging(trigger: Trigger):
         """Configure trigger logging to allow individual files and stdout filtering."""
         # set logging context vars for routing to appropriate handler
         ctx_task_instance.set(trigger.task_instance)
@@ -635,7 +663,7 @@ class TriggerRunner(threading.Thread, LoggingMixin):
         # mark that we're in the context of an individual trigger so log records can be filtered
         ctx_indiv_trigger.set(True)
 
-    async def run_trigger(self, trigger_id, trigger):
+    async def run_trigger(self, trigger_id, trigger: BaseTrigger):
         """Run a trigger (they are async generators) and push their events into our outbound event deque."""
         name = self.triggers[trigger_id]["name"]
         self.log.info("trigger %s starting", name)
@@ -665,6 +693,17 @@ class TriggerRunner(threading.Thread, LoggingMixin):
             # unsetting ctx_indiv_trigger var restores stdout logging
             ctx_indiv_trigger.set(None)
             self.log.info("trigger %s completed", name)
+
+    async def run_listener(self, listener_id, listener):
+        name = self.triggers[listener_id]["name"]
+        self.log.info("listener %s starting", name)
+        try:
+            await listener.run()
+        except asyncio.CancelledError:
+            self.log.info("Listener %s cancelled", self.triggers[listener_id]["name"])
+        finally:
+            await listener.cleanup()
+        self.log.info("Listener %s finished", self.triggers[listener_id]["name"])
 
     @staticmethod
     def mark_trigger_end(trigger):
@@ -721,7 +760,7 @@ class TriggerRunner(threading.Thread, LoggingMixin):
             # row was updated by either Trigger.submit_event or Trigger.submit_failure
             # and can happen when a single trigger Job is being run on multiple TriggerRunners
             # in a High-Availability setup.
-            if new_trigger_orm.task_instance is None and new_id not in triggers_with_assets:
+            if new_trigger_orm.kind == WorkloadType.TRIGGER and new_trigger_orm.task_instance is None and new_id not in triggers_with_assets:
                 self.log.info(
                     (
                         "TaskInstance for Trigger ID %s is None. It was likely updated by another trigger job. "
@@ -733,13 +772,13 @@ class TriggerRunner(threading.Thread, LoggingMixin):
 
             try:
                 new_trigger_instance = trigger_class(**new_trigger_orm.kwargs)
+                self.set_trigger_logging_metadata(new_trigger_orm.task_instance, new_id, new_trigger_instance)
+                self.to_create.append((new_trigger_orm.kind, new_id, new_trigger_instance))
             except TypeError as err:
                 self.log.error("Trigger failed; message=%s", err)
                 self.failed_triggers.append((new_id, err))
                 continue
 
-            self.set_trigger_logging_metadata(new_trigger_orm.task_instance, new_id, new_trigger_instance)
-            self.to_create.append((new_id, new_trigger_instance))
         # Enqueue orphaned triggers for cancellation
         self.to_cancel.extend(cancel_trigger_ids)
 

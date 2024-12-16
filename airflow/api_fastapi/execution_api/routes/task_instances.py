@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import logging
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import Body, HTTPException, status
@@ -37,7 +37,8 @@ from airflow.api_fastapi.execution_api.datamodels.taskinstance import (
     TITerminalStatePayload,
 )
 from airflow.models.taskinstance import TaskInstance as TI, _update_rtif
-from airflow.models.trigger import Trigger
+from airflow.models.trigger import Trigger, WorkloadType
+from airflow.triggers.base import BaseTrigger, TriggerEvent
 from airflow.utils import timezone
 from airflow.utils.state import State
 
@@ -46,6 +47,29 @@ router = AirflowRouter()
 
 
 log = logging.getLogger(__name__)
+
+
+
+class AsyncLoggingListener(BaseTrigger):
+    def __init__(self, data: str, **kwargs):
+        super().__init__(**kwargs)
+        self.data = data
+
+    def serialize(self) -> tuple[str, dict[str, Any]]:
+        return (
+            "airflow.api_fastapi.execution_api.routes.task_instances.AsyncLoggingListener",
+            {
+                "data": self.data,
+            }
+        )
+
+    async def run(self):
+        self.log.error("Async Logging Listener, data: %s", self.data)
+
+
+async_listeners = [
+    AsyncLoggingListener("asdf")
+]
 
 
 @router.patch(
@@ -124,6 +148,19 @@ def ti_update_state(
         )
     elif isinstance(ti_patch_payload, TITerminalStatePayload):
         query = TI.duration_expression_update(ti_patch_payload.end_date, query, session.bind)
+
+        if async_listeners:
+            for listener in async_listeners:
+                classpath, kwargs = listener.serialize()
+                trigger_row = Trigger(
+                    classpath=classpath,
+                    kwargs=kwargs,
+                    kind=WorkloadType.LISTENER
+                )
+                log.error(f"{classpath} -: {kwargs}")
+                log.error(f"trigger_row={trigger_row}")
+                session.add(trigger_row)
+
     elif isinstance(ti_patch_payload, TIDeferredStatePayload):
         # Calculate timeout if it was passed
         timeout = None

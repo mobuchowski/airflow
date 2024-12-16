@@ -17,12 +17,13 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from collections.abc import Iterable
 from enum import Enum
 from traceback import format_exception
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import Column, Integer, String, Text, delete, func, or_, select, update
+from sqlalchemy import Column, Integer, String, Text, delete, func, or_, and_, select, update
 from sqlalchemy.orm import relationship, selectinload
 from sqlalchemy.sql.functions import coalesce
 
@@ -50,6 +51,7 @@ Internal use only.
 :meta private:
 """
 
+log = logging.getLogger(__name__)
 
 class TriggerFailureReason(str, Enum):
     """
@@ -62,6 +64,16 @@ class TriggerFailureReason(str, Enum):
 
     TRIGGER_TIMEOUT = "Trigger timeout"
     TRIGGER_FAILURE = "Trigger failure"
+
+
+class WorkloadType(str, Enum):
+    """
+    Types of async workloads available in Airflow
+    """
+
+    TRIGGER = "trigger"
+    CALLBACK = "callback"
+    LISTENER = "listener"
 
 
 class Trigger(Base):
@@ -90,6 +102,7 @@ class Trigger(Base):
     encrypted_kwargs = Column("kwargs", Text, nullable=False)
     created_date = Column(UtcDateTime, nullable=False)
     triggerer_id = Column(Integer, nullable=True)
+    kind = Column(String, nullable=False, default=WorkloadType.TRIGGER)
 
     triggerer_job = relationship(
         "Job",
@@ -107,11 +120,13 @@ class Trigger(Base):
         classpath: str,
         kwargs: dict[str, Any],
         created_date: datetime.datetime | None = None,
+        kind: WorkloadType = WorkloadType.TRIGGER,
     ) -> None:
         super().__init__()
         self.classpath = classpath
         self.encrypted_kwargs = self.encrypt_kwargs(kwargs)
         self.created_date = created_date or timezone.utcnow()
+        self.kind = kind
 
     @property
     def kwargs(self) -> dict[str, Any]:
@@ -211,7 +226,7 @@ class Trigger(Base):
         # Get all triggers that have no task instances and assets depending on them and delete them
         ids = (
             select(cls.id)
-            .where(~cls.assets.any())
+            .where(~cls.assets.any(), cls.kind == WorkloadType.TRIGGER)
             .join(TaskInstance, cls.id == TaskInstance.trigger_id, isouter=True)
             .group_by(cls.id)
             .having(func.count(TaskInstance.trigger_id) == 0)
@@ -221,6 +236,14 @@ class Trigger(Base):
             ids = session.scalars(ids).all()
         session.execute(
             delete(Trigger).where(Trigger.id.in_(ids)).execution_options(synchronize_session=False)
+        )
+
+    @classmethod
+    @provide_session
+    def clean_finished_listener(cls, id: int, session: Session = NEW_SESSION) -> None:
+        """Delete all listeners that have finished execution."""
+        session.execute(
+            delete(Trigger).where(Trigger.id == id).execution_options(synchronize_session=False)
         )
 
     @classmethod
@@ -320,6 +343,7 @@ class Trigger(Base):
         trigger_ids_query = cls.get_sorted_triggers(
             capacity=capacity, alive_triggerer_ids=alive_triggerer_ids, session=session
         )
+        log.error(f"trigger_ids_query={trigger_ids_query}")
         if trigger_ids_query:
             session.execute(
                 update(cls)
@@ -349,6 +373,8 @@ class Trigger(Base):
             skip_locked=True,
         )
         ti_triggers = session.execute(query).all()
+        log.error(f"query={query}")
+        log.error(f"listener_triggers={ti_triggers}")
 
         query = with_row_locks(
             select(cls.id).where(cls.assets.any()).order_by(cls.created_date).limit(capacity),
@@ -357,6 +383,16 @@ class Trigger(Base):
         )
         asset_triggers = session.execute(query).all()
 
+        query = with_row_locks(
+            select(cls.id)
+            .where(and_(Trigger.kind == WorkloadType.LISTENER, or_(cls.triggerer_id.is_(None), cls.triggerer_id.not_in(alive_triggerer_ids))))
+            .limit(capacity),
+            session,
+            skip_locked=True,
+        )
+        listener_triggers = session.execute(query).all()
+        log.error(f"query={query}")
+        log.error(f"listener_triggers={listener_triggers}")
         # Add triggers associated to assets after triggers associated to tasks
         # It prioritizes DAGs over event driven scheduling which is fair
-        return ti_triggers + asset_triggers
+        return ti_triggers + asset_triggers  + listener_triggers
