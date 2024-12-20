@@ -48,7 +48,9 @@ from airflow.sdk.api.datamodels._generated import (
     TaskInstance,
     TerminalTIState,
 )
+from airflow.sdk.execution_time.activities import from_executor
 from airflow.sdk.execution_time.comms import (
+    ActivityResult,
     DeferTask,
     GetConnection,
     GetVariable,
@@ -64,6 +66,7 @@ from airflow.sdk.execution_time.comms import (
 if TYPE_CHECKING:
     from structlog.typing import FilteringBoundLogger, WrappedLogger
 
+    from airflow.executors.workloads import SubActivity as ExecutorSubActivity
     from airflow.typing_compat import Self
 
 
@@ -299,6 +302,7 @@ class WatchedSubprocess:
         cls,
         path: str | os.PathLike[str],
         what: TaskInstance,
+        subactivities: list[ExecutorSubActivity],
         client: Client,
         target: Callable[[], None] = _subprocess_main,
         logger: FilteringBoundLogger | None = None,
@@ -353,7 +357,7 @@ class WatchedSubprocess:
         )
 
         # Tell the task process what it needs to do!
-        proc._on_child_started(what, path, requests_fd)
+        proc._on_child_started(ti=what, subactivities=subactivities, path=path, requests_fd=requests_fd)
 
         return proc
 
@@ -392,7 +396,13 @@ class WatchedSubprocess:
         for sock in sockets:
             sock.close()
 
-    def _on_child_started(self, ti: TaskInstance, path: str | os.PathLike[str], requests_fd: int):
+    def _on_child_started(
+        self,
+        ti: TaskInstance,
+        subactivities: list[ExecutorSubActivity],
+        path: str | os.PathLike[str],
+        requests_fd: int,
+    ):
         """Send startup message to the subprocess."""
         try:
             # We've forked, but the task won't start doing anything until we send it the StartupDetails
@@ -405,9 +415,13 @@ class WatchedSubprocess:
             self.kill(signal.SIGKILL)
             raise
 
+        # Constructing subactivities here for now
+        subactivities = from_executor(subactivities)
+
         msg = StartupDetails.model_construct(
             ti=ti,
             file=os.fspath(path),
+            subactivities=subactivities,
             requests_fd=requests_fd,
             ti_context=ti_context,
         )
@@ -706,6 +720,8 @@ class WatchedSubprocess:
             self.client.xcoms.set(msg.dag_id, msg.run_id, msg.task_id, msg.key, msg.value, msg.map_index)
         elif isinstance(msg, PutVariable):
             self.client.variables.set(msg.key, msg.value, msg.description)
+        elif isinstance(msg, ActivityResult):
+            log.error("Activity finished:", msg)
         else:
             log.error("Unhandled request", msg=msg)
             return
@@ -802,6 +818,7 @@ def supervise(
     ti: TaskInstance,
     dag_path: str | os.PathLike[str],
     token: str,
+    subactivities: list[ExecutorSubActivity],
     server: str | None = None,
     dry_run: bool = False,
     log_path: str | None = None,
@@ -813,6 +830,7 @@ def supervise(
     :param ti: The task instance to run.
     :param dag_path: The file path to the DAG.
     :param token: Authentication token for the API client.
+    :param subactivities:
     :param server: Base URL of the API server.
     :param dry_run: If True, execute without actual task execution (simulate run).
     :param log_path: Path to write logs, if required.
@@ -856,7 +874,7 @@ def supervise(
         processors = logging_processors(enable_pretty_log=pretty_logs)[0]
         logger = structlog.wrap_logger(underlying_logger, processors=processors, logger_name="task").bind()
 
-    process = WatchedSubprocess.start(dag_path, ti, client=client, logger=logger)
+    process = WatchedSubprocess.start(dag_path, ti, subactivities=subactivities, client=client, logger=logger)
 
     exit_code = process.wait()
     end = time.monotonic()

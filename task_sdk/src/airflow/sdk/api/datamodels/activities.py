@@ -18,10 +18,11 @@
 from __future__ import annotations
 
 import os
+from typing import Annotated, Literal, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from airflow.sdk.api.datamodels._generated import TaskInstance
+from airflow.sdk.api.datamodels._generated import IntermediateTIState, TaskInstance, TerminalTIState
 
 
 class ExecuteTaskActivity(BaseModel):
@@ -29,3 +30,23 @@ class ExecuteTaskActivity(BaseModel):
     path: os.PathLike[str]
     token: str
     """The identity token for this workload"""
+
+
+class ListenerActivity(BaseModel):
+    state: TerminalTIState | IntermediateTIState
+    type: Literal["ListenerActivity"] = "ListenerActivity"
+
+
+class TaskCallbackActivity(BaseModel):
+    full_filepath: str
+    ti: TaskInstance
+    processor_subdir: str | None = None
+    msg: str | None = None
+    state: TerminalTIState | IntermediateTIState | None = None
+    type: Literal["CallbackActivity"] = "CallbackActivity"
+
+
+Activity = Annotated[
+    Union[ListenerActivity, TaskCallbackActivity],
+    Field(discriminator="type"),
+]

@@ -44,6 +44,7 @@ Execution API server is because:
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Annotated, Literal, Union
 
 from fastapi import Body
@@ -59,6 +60,7 @@ from airflow.sdk.api.datamodels._generated import (
     VariableResponse,
     XComResponse,
 )
+from airflow.sdk.api.datamodels.activities import Activity
 
 
 class StartupDetails(BaseModel):
@@ -73,6 +75,7 @@ class StartupDetails(BaseModel):
     Responses will come back on stdin
     """
     ti_context: TIRunContext
+    subactivities: list[Activity]
     type: Literal["StartupDetails"] = "StartupDetails"
 
 
@@ -91,7 +94,7 @@ class VariableResult(VariableResponse):
 
 
 ToTask = Annotated[
-    Union[StartupDetails, XComResult, ConnectionResult, VariableResult],
+    Union[StartupDetails, XComResult, ConnectionResult, VariableResult, Activity],
     Field(discriminator="type"),
 ]
 
@@ -189,6 +192,17 @@ class SetRenderedFields(BaseModel):
     type: Literal["SetRenderedFields"] = "SetRenderedFields"
 
 
+class ActivityStatus(str, Enum):
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class ActivityResult(BaseModel):
+    id: str
+    status: ActivityStatus
+    type: Literal["ActivityResult"] = "ActivityResult"
+
+
 ToSupervisor = Annotated[
     Union[
         TaskState,
@@ -200,6 +214,7 @@ ToSupervisor = Annotated[
         SetXCom,
         SetRenderedFields,
         RescheduleTask,
+        ActivityResult,
     ],
     Field(discriminator="type"),
 ]

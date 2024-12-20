@@ -23,15 +23,23 @@ import os
 import sys
 from datetime import datetime, timezone
 from io import FileIO
-from typing import TYPE_CHECKING, Annotated, Any, Generic, TextIO, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, Generic, TextIO, TypeVar, Union
 
 import attrs
 import structlog
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, TypeAdapter
 
-from airflow.sdk.api.datamodels._generated import TaskInstance, TerminalTIState, TIRunContext
+from airflow.sdk.api.datamodels._generated import (
+    IntermediateTIState,
+    TaskInstance,
+    TerminalTIState,
+    TIRunContext,
+)
+from airflow.sdk.api.datamodels.activities import Activity, ListenerActivity, TaskCallbackActivity
 from airflow.sdk.definitions.baseoperator import BaseOperator
+from airflow.sdk.execution_time.callback import execute_task_callback
 from airflow.sdk.execution_time.comms import (
+    ActivityResult,
     DeferTask,
     RescheduleTask,
     SetRenderedFields,
@@ -40,6 +48,7 @@ from airflow.sdk.execution_time.comms import (
     ToSupervisor,
     ToTask,
 )
+from airflow.sdk.execution_time.listener import execute_listeners
 
 if TYPE_CHECKING:
     from structlog.typing import FilteringBoundLogger as Logger
@@ -109,7 +118,20 @@ class RuntimeTaskInstance(TaskInstance):
         return context
 
 
-def parse(what: StartupDetails) -> RuntimeTaskInstance:
+class RuntimeListenerActivity(ListenerActivity):
+    ti: RuntimeTaskInstance
+
+
+class RuntimeTaskCallbackActivity(TaskCallbackActivity):
+    """Needs to "hydrate" with TI."""
+
+    runtime_ti: RuntimeTaskInstance
+
+
+RuntimeActivity = Annotated[Union[RuntimeListenerActivity, RuntimeTaskCallbackActivity], Field(repr=False)]
+
+
+def parse(what: StartupDetails) -> tuple[RuntimeTaskInstance, list[Activity]]:
     # TODO: Task-SDK:
     # Using DagBag here is about 98% wrong, but it'll do for now
 
@@ -133,11 +155,23 @@ def parse(what: StartupDetails) -> RuntimeTaskInstance:
     if not isinstance(task, BaseOperator):
         raise TypeError(f"task is of the wrong type, got {type(task)}, wanted {BaseOperator}")
 
-    return RuntimeTaskInstance.model_construct(
+    runtime_ti = RuntimeTaskInstance.model_construct(
         **what.ti.model_dump(exclude_unset=True),
         task=task,
         _ti_context_from_server=what.ti_context,
     )
+    runtime_activities = []
+
+    for activity in what.subactivities:
+        if isinstance(activity, TaskCallbackActivity):
+            runtime_activities.append(
+                RuntimeTaskCallbackActivity(**activity.model_dump(), runtime_ti=runtime_ti)
+            )
+        elif isinstance(activity, ListenerActivity):
+            runtime_activities.append(
+                RuntimeListenerActivity.model_construct(**activity.model_dump(), ti=runtime_ti)
+            )
+    return runtime_ti, runtime_activities
 
 
 SendMsgType = TypeVar("SendMsgType", bound=BaseModel)
@@ -201,7 +235,7 @@ SUPERVISOR_COMMS: CommsDecoder[ToTask, ToSupervisor]
 # 3. Shutdown and report status
 
 
-def startup() -> tuple[RuntimeTaskInstance, Logger]:
+def startup() -> tuple[RuntimeTaskInstance, Logger, list[Activity]]:
     msg = SUPERVISOR_COMMS.get_message()
 
     if isinstance(msg, StartupDetails):
@@ -211,7 +245,7 @@ def startup() -> tuple[RuntimeTaskInstance, Logger]:
 
         log = structlog.get_logger(logger_name="task")
         # TODO: set the "magic loop" context vars for parsing
-        ti = parse(msg)
+        ti, activities = parse(msg)
         log.debug("DAG file parsed", file=msg.file)
     else:
         raise RuntimeError(f"Unhandled  startup message {type(msg)} {msg}")
@@ -228,7 +262,8 @@ def startup() -> tuple[RuntimeTaskInstance, Logger]:
     # so that we do not call the API unnecessarily
     if rendered_fields := _get_rendered_fields(ti.task):
         SUPERVISOR_COMMS.send_request(log=log, msg=SetRenderedFields(rendered_fields=rendered_fields))
-    return ti, log
+
+    return ti, log, activities
 
 
 def _get_rendered_fields(task: BaseOperator) -> dict[str, JsonValue]:
@@ -258,6 +293,7 @@ def run(ti: RuntimeTaskInstance, log: Logger):
         assert isinstance(ti.task, BaseOperator)
 
     msg: ToSupervisor | None = None
+    state: IntermediateTIState | TerminalTIState | None = None
     try:
         # TODO: pre execute etc.
         # TODO next_method to support resuming from deferred
@@ -265,6 +301,7 @@ def run(ti: RuntimeTaskInstance, log: Logger):
         context = ti.get_template_context()
         ti.task.execute(context)  # type: ignore[attr-defined]
         msg = TaskState(state=TerminalTIState.SUCCESS, end_date=datetime.now(tz=timezone.utc))
+        state = TerminalTIState.SUCCESS
     except TaskDeferred as defer:
         classpath, trigger_kwargs = defer.trigger.serialize()
         next_method = defer.method_name
@@ -275,15 +312,18 @@ def run(ti: RuntimeTaskInstance, log: Logger):
             next_method=next_method,
             trigger_timeout=timeout,
         )
+        state = IntermediateTIState.DEFERRED
     except AirflowSkipException:
         msg = TaskState(
             state=TerminalTIState.SKIPPED,
             end_date=datetime.now(tz=timezone.utc),
         )
+        state = TerminalTIState.SKIPPED
     except AirflowRescheduleException as reschedule:
         msg = RescheduleTask(
             reschedule_date=reschedule.reschedule_date, end_date=datetime.now(tz=timezone.utc)
         )
+        state = IntermediateTIState.UP_FOR_RESCHEDULE
     except (AirflowFailException, AirflowSensorTimeout):
         # If AirflowFailException is raised, task should not retry.
         # If a sensor in reschedule mode reaches timeout, task should not retry.
@@ -294,9 +334,10 @@ def run(ti: RuntimeTaskInstance, log: Logger):
             state=TerminalTIState.FAILED,
             end_date=datetime.now(tz=timezone.utc),
         )
-
+        state = TerminalTIState.FAILED
         # TODO: Run task failure callbacks here
     except (AirflowTaskTimeout, AirflowException, AirflowTaskTerminated):
+        state = IntermediateTIState.UP_FOR_RETRY
         ...
     except SystemExit:
         ...
@@ -306,9 +347,20 @@ def run(ti: RuntimeTaskInstance, log: Logger):
 
     if msg:
         SUPERVISOR_COMMS.send_request(msg=msg, log=log)
+    return state
 
 
-def finalize(log: Logger): ...
+def finalize(state: IntermediateTIState | TerminalTIState, activities: list[RuntimeActivity], log: Logger):
+    for activity in activities:
+        result: ActivityResult | None = None
+        log.warning("Running Activity %s", activity)
+        if isinstance(activity, RuntimeListenerActivity):
+            result = execute_listeners(state, activity, log)
+        elif isinstance(activity, RuntimeTaskCallbackActivity):
+            result = execute_task_callback(state, activity, log)
+        log.warning("Activity Result %s", result)
+        if result:
+            SUPERVISOR_COMMS.send_request(msg=result, log=log)
 
 
 def main():
@@ -317,9 +369,9 @@ def main():
     global SUPERVISOR_COMMS
     SUPERVISOR_COMMS = CommsDecoder(input=sys.stdin)
     try:
-        ti, log = startup()
+        ti, log, activities = startup()
         run(ti, log)
-        finalize(log)
+        finalize(ti, activities, log)
     except KeyboardInterrupt:
         log = structlog.get_logger(logger_name="task")
         log.exception("Ctrl-c hit")

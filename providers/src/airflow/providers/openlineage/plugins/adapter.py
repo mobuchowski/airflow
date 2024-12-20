@@ -159,7 +159,7 @@ class OpenLineageAdapter(LoggingMixin):
                 self.log.debug("Successfully emitted OpenLineage event of id %s", event.run.runId)
         except Exception:
             Stats.incr("ol.emit.failed")
-            self.log.warning("Failed to emit OpenLineage event of id %s", event.run.runId)
+            self.log.warning("Failed to emit OpenLineage event of id %s", event.run.runId, exc_info=True)
             self.log.debug("OpenLineage emission failure: %s", exc_info=True)
 
         return redacted_event

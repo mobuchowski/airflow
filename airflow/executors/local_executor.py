@@ -101,8 +101,7 @@ def _execute_work(log: logging.Logger, workload: workloads.ExecuteTask) -> None:
     """
     Execute command received and stores result state in queue.
 
-    :param key: the key to identify the task instance
-    :param command: the command to execute
+    :param workload: the workload to execute
     """
     from airflow.configuration import conf
     from airflow.sdk.execution_time.supervisor import supervise
@@ -115,6 +114,7 @@ def _execute_work(log: logging.Logger, workload: workloads.ExecuteTask) -> None:
         ti=workload.ti,  # type: ignore[arg-type]
         dag_path=workload.dag_path,
         token=workload.token,
+        subactivities=workload.subactivities,  # Where to translate "subactivities" into SDK types?
         server=conf.get("workers", "execution_api_server_url", fallback="http://localhost:9091/execution/"),
         log_path=workload.log_path,
     )

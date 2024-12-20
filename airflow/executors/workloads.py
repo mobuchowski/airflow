@@ -26,7 +26,7 @@ from pydantic import BaseModel, Field
 if TYPE_CHECKING:
     from airflow.models.taskinstance import TaskInstance as TIModel
     from airflow.models.taskinstancekey import TaskInstanceKey
-
+    from airflow.utils.state import TaskInstanceState
 
 __all__ = [
     "All",
@@ -71,6 +71,8 @@ class ExecuteTask(BaseActivity):
     """The TaskInstance to execute"""
     dag_path: os.PathLike[str]
     """The filepath where the DAG can be found (likely prefixed with `DAG_FOLDER/`)"""
+    subactivities: list[SubActivity]
+    """Subactivities to be executed in hook points around the main task"""
 
     log_path: str | None
     """The rendered relative log filename template the task logs should be written to"""
@@ -78,7 +80,9 @@ class ExecuteTask(BaseActivity):
     kind: Literal["ExecuteTask"] = Field(init=False, default="ExecuteTask")
 
     @classmethod
-    def make(cls, ti: TIModel, dag_path: Path | None = None) -> ExecuteTask:
+    def make(
+        cls, ti: TIModel, dag_path: Path | None = None, subactivities: list[SubActivity] | None = None
+    ) -> ExecuteTask:
         from pathlib import Path
 
         from airflow.utils.helpers import log_filename_template_renderer
@@ -91,8 +95,64 @@ class ExecuteTask(BaseActivity):
             # TODO: What about multiple dag sub folders
             dag_path = "DAGS_FOLDER" / dag_path
 
+        if not subactivities:
+            subactivities = []
+
         fname = log_filename_template_renderer()(ti=ti)
-        return cls(ti=ser_ti, dag_path=dag_path, token="", log_path=fname)
+        return cls(ti=ser_ti, dag_path=dag_path, subactivities=subactivities, token="", log_path=fname)
 
 
-All = Union[ExecuteTask]
+class ExecuteCallback(BaseActivity):
+    full_filepath: str
+    ti: TaskInstance
+    state: TaskInstanceState
+    processor_subdir: str | None = None
+    msg: str | None = None
+
+    log_path: str | None
+    """The rendered relative log filename template the task logs should be written to"""
+    kind: Literal["ExecuteCallback"] = Field(init=False, default="ExecuteCallback")
+
+    @classmethod
+    def make(
+        cls,
+        full_filepath: str,
+        ti: TIModel,
+        processor_subdir: str | None,
+        msg: str | None,
+        state: TaskInstanceState,
+    ) -> ExecuteCallback:
+        ser_ti = TaskInstance.model_validate(ti, from_attributes=True)
+
+        from airflow.utils.helpers import log_filename_template_renderer
+
+        fname = log_filename_template_renderer()(ti=ti)  # TODO: FIX - other place to log
+        return cls(
+            full_filepath=full_filepath,
+            ti=ser_ti,
+            state=state,
+            processor_subdir=processor_subdir,
+            msg=msg,
+            token="",
+            log_path=fname,
+        )
+
+
+class ExecuteTIListener(BaseActivity):
+    state: TaskInstanceState
+
+    log_path: str | None
+    """The rendered relative log filename template the task logs should be written to"""
+    kind: Literal["ExecuteTIListener"] = Field(init=False, default="ExecuteTIListener")
+
+    @classmethod
+    def make(cls, ti: TaskInstance, state: TaskInstanceState) -> ExecuteTIListener:
+        from airflow.utils.helpers import log_filename_template_renderer
+
+        fname = log_filename_template_renderer()(ti=ti)  # TODO: FIX - other place to log
+        return cls(state=state, token="", log_path=fname)
+
+
+SubActivity = Union[ExecuteCallback, ExecuteTIListener]
+
+All = Union[ExecuteTask, ExecuteCallback]
