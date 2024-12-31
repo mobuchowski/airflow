@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from openlineage.client.serde import Serde
-from openlineage.client.transport import Transport, get_default_factory
+from openlineage.client.transport import Config, Transport, get_default_factory
 
 from airflow.models.variable import Variable
 
@@ -36,6 +36,9 @@ class VariableTransport(Transport):
     """
 
     kind = "variable"
+
+    def __init__(self, config: Config) -> None:
+        pass
 
     def emit(self, event: Event) -> None:
         key = f"{event.job.name}.event.{event.eventType.value.lower()}"  # type: ignore[union-attr]
