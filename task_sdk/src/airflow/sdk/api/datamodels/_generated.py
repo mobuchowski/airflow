@@ -221,6 +221,7 @@ class DagRun(BaseModel):
     data_interval_end: Annotated[datetime | None, Field(title="Data Interval End")] = None
     start_date: Annotated[datetime, Field(title="Start Date")]
     end_date: Annotated[datetime | None, Field(title="End Date")] = None
+    clear_number: Annotated[int, Field(title="Clear Number")] = 0
     run_type: DagRunType
     conf: Annotated[dict[str, Any] | None, Field(title="Conf")] = None
 
@@ -235,6 +236,8 @@ class TIRunContext(BaseModel):
     """
 
     dag_run: DagRun
+    start_date: Annotated[datetime, Field(title="Start Date")]
+    task_reschedule_count: Annotated[int, Field(title="Task Reschedule Count")] = 0
     max_tries: Annotated[int, Field(title="Max Tries")]
     variables: Annotated[list[VariableResponse] | None, Field(title="Variables")] = None
     connections: Annotated[list[ConnectionResponse] | None, Field(title="Connections")] = None
