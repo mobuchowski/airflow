@@ -593,9 +593,42 @@ class OpenLineageListener:
             setproctitle(getproctitle() + " - OpenLineage - " + callable_name)
             if not AIRFLOW_V_3_0_PLUS:
                 configure_orm(disable_connection_pool=True)
+
+            # Force flush any pending parent logs and ensure child uses same handlers
+            for handler in self.log.handlers:
+                handler.flush()
+
+            LOGGING_CONFIG = {
+                "version": 1,
+                "disable_existing_loggers": True,
+                "formatters": {
+                    "detailed": {
+                        "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                        "datefmt": "%Y-%m-%d %H:%M:%S",
+                    },
+                },
+                "handlers": {
+                    "file": {
+                        "class": "logging.FileHandler",
+                        "filename": os.getenv("OL_LOG_FILE", "/opt/airflow/ol.log"),
+                        "formatter": "detailed",
+                        "level": "DEBUG",
+                    },
+                },
+                "root": {"level": "DEBUG", "handlers": ["file"]},
+            }
+
+            # Apply the configuration
+            logging.config.dictConfig(LOGGING_CONFIG)
+
             self.log.debug("Executing OpenLineage process - %s - pid %s", callable_name, os.getpid())
             callable()
             self.log.debug("Process with current pid finishes after %s", callable_name)
+
+            # Flush all handlers before exit to ensure logs are written
+            for handler in self.log.handlers:
+                handler.flush()
+
             os._exit(0)
 
     @property
