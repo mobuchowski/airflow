@@ -21,6 +21,7 @@ import datetime
 import json
 import logging
 from typing import TYPE_CHECKING, Any
+from uuid import UUID
 
 import requests
 
@@ -40,6 +41,12 @@ if TYPE_CHECKING:
     from airflow.providers.databricks.hooks.databricks_sql import DatabricksSqlHook
 
 log = logging.getLogger(__name__)
+
+_AIRFLOW_DAG_JOB_TYPE = {
+    "processingType": "BATCH",
+    "integration": "AIRFLOW",
+    "jobType": "DAG",
+}
 
 
 def _get_parent_run_facet(task_instance):
@@ -356,9 +363,54 @@ def _is_openlineage_provider_accessible() -> bool:
     return True
 
 
+def _get_dag_run_conf(task_instance) -> dict[str, Any]:
+    dag_run = getattr(task_instance, "dag_run", None)
+    if dag_run is None:
+        dag_run = task_instance.get_template_context()["dag_run"]
+    conf = getattr(dag_run, "conf", None)
+    return conf if isinstance(conf, dict) else {}
+
+
+def _has_valid_job_identifiers(openlineage_conf: dict[str, Any], keys: tuple[str, str, str]) -> bool:
+    run_id, namespace, name = (openlineage_conf.get(key) for key in keys)
+    if not all((run_id, namespace, name)):
+        return False
+    try:
+        UUID(str(run_id))
+    except ValueError:
+        return False
+    return True
+
+
+def _get_root_job_type(task_instance) -> dict[str, Any] | None:
+    openlineage_conf = _get_dag_run_conf(task_instance).get("openlineage")
+    if not isinstance(openlineage_conf, dict):
+        return dict(_AIRFLOW_DAG_JOB_TYPE)
+
+    has_inherited_root = _has_valid_job_identifiers(
+        openlineage_conf,
+        ("rootParentRunId", "rootParentJobNamespace", "rootParentJobName"),
+    ) or _has_valid_job_identifiers(
+        openlineage_conf,
+        ("parentRunId", "parentJobNamespace", "parentJobName"),
+    )
+    if not has_inherited_root:
+        return dict(_AIRFLOW_DAG_JOB_TYPE)
+
+    root_job_type = openlineage_conf.get("rootParentJobType")
+    return copy.deepcopy(root_job_type) if isinstance(root_job_type, dict) else None
+
+
 def _build_openlineage_parent_run_context(task_instance) -> dict[str, Any]:
     """Build the standardized OpenLineage parent-run context for a task instance."""
     parent_run_facet = _get_parent_run_facet(task_instance)
+    root_job: dict[str, Any] = {
+        "namespace": parent_run_facet.root.job.namespace,
+        "name": parent_run_facet.root.job.name,
+    }
+    if root_job_type := _get_root_job_type(task_instance):
+        root_job["facets"] = {"jobType": root_job_type}
+
     return {
         "parent": {
             "run": {"runId": parent_run_facet.run.runId},
@@ -375,17 +427,7 @@ def _build_openlineage_parent_run_context(task_instance) -> dict[str, Any]:
             },
             "root": {
                 "run": {"runId": parent_run_facet.root.run.runId},
-                "job": {
-                    "namespace": parent_run_facet.root.job.namespace,
-                    "name": parent_run_facet.root.job.name,
-                    "facets": {
-                        "jobType": {
-                            "processingType": "BATCH",
-                            "integration": "AIRFLOW",
-                            "jobType": "DAG",
-                        }
-                    },
-                },
+                "job": root_job,
             },
         }
     }

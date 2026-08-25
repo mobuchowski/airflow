@@ -85,9 +85,11 @@ OpenLineage parent job information
 
 Set ``openlineage_inject_parent_job_info=True`` to add the standardized OpenLineage context to the
 run's ``job_parameters`` under the ``OPENLINEAGE_CONTEXT`` key. The JSON value contains the Airflow
-task as the parent job, with ``jobType`` set to ``BATCH/AIRFLOW/TASK``, and the Airflow Dag as the
-root job, with ``jobType`` set to ``BATCH/AIRFLOW/DAG``. This follows the context format introduced
-in `OpenLineage #4682 <https://github.com/OpenLineage/OpenLineage/pull/4682>`_.
+task as the parent job, with ``jobType`` set to ``BATCH/AIRFLOW/TASK``. When the current Airflow Dag
+is the root job, its ``jobType`` is set to ``BATCH/AIRFLOW/DAG``. For a root inherited through
+``DagRun.conf``, the job type is copied from ``conf["openlineage"]["rootParentJobType"]`` when that
+mapping is present; otherwise, the root job has no ``jobType`` facet. This follows the context format
+introduced in `OpenLineage #4682 <https://github.com/OpenLineage/OpenLineage/pull/4682>`_.
 
 ``OPENLINEAGE_CONTEXT`` is a Databricks job parameter, not an operating-system environment variable.
 The Databricks task must expose the parameter to the downstream OpenLineage integration through its
